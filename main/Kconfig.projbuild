@@ -1,0 +1,9 @@
+menu "DMX Led Config"
+
+config BTN_LONGPRESS
+    int "Long press duration in ms"
+    default 3000
+    help
+        Duration for button press to register as long press
+
+endmenu
