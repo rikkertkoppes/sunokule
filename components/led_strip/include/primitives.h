@@ -1,4 +1,5 @@
 
+#include <math.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -117,10 +118,10 @@ void waveform(byte *mem, byte *prog, byte *counter) {
 }
 
 void hsv2rgb(byte *mem, byte *prog, byte *counter) {
-    byte _h = *(prog + *counter);
-    byte _s = *(prog + *counter + 1);
-    byte _v = *(prog + *counter + 2);
-    byte _result = *(prog + *counter + 3);
+    byte _h = data_fetch(mem, prog, counter);
+    byte _s = data_fetch(mem, prog, counter);
+    byte _v = data_fetch(mem, prog, counter);
+    byte _result = data_fetch(mem, prog, counter);
 
     float h = getFloat(mem, _h);
     float s = getFloat(mem, _s);
@@ -174,4 +175,89 @@ void hsv2rgb(byte *mem, byte *prog, byte *counter) {
     setFloat(mem, _result, r);
     setFloat(mem, _result + 1, g);
     setFloat(mem, _result + 2, b);
+}
+
+void math(byte *mem, byte *prog, byte *counter) {
+    byte _a = data_fetch(mem, prog, counter);
+    byte _b = data_fetch(mem, prog, counter);
+    byte _fn = data_fetch(mem, prog, counter);
+    byte _result = data_fetch(mem, prog, counter);
+    float a = getFloat(mem, _a);
+    float b = getFloat(mem, _b);
+    int fn = (int)(getFloat(mem, _fn));
+
+    float value = 0;
+
+    switch (fn) {
+        case 0:
+            value = a + b;
+            break;
+        case 1:
+            value = a - b;
+            break;
+        case 2:
+            value = a * b;
+            break;
+        case 3:
+            value = a / b;
+            break;
+        case 4:
+            value = fmin(a, b);
+            break;
+        case 5:
+            value = fmax(a, b);
+            break;
+    }
+
+    setFloat(mem, _result, value);
+}
+
+void trig(byte *mem, byte *prog, byte *counter) {
+    byte _x = data_fetch(mem, prog, counter);
+    byte _fn = data_fetch(mem, prog, counter);
+    byte _result = data_fetch(mem, prog, counter);
+    float x = getFloat(mem, _x);
+    int fn = (int)(getFloat(mem, _fn));
+
+    float value = 0;
+    switch (fn) {
+        case 0:
+            value = sin(x);
+            break;
+        case 1:
+            value = cos(x);
+            break;
+        case 2:
+            value = tan(x);
+            break;
+        case 3:
+            value = sin(2 * M_PI * x);
+            break;
+        case 4:
+            value = cos(2 * M_PI * x);
+            break;
+        case 5:
+            value = tan(2 * M_PI * x);
+            break;
+        case 6:
+            value = fmod(x, 1.0);
+            break;
+        case 7:
+            value = (float)rand() / (float)(RAND_MAX);
+            break;
+        case 8:
+            value = round(x);
+            break;
+        case 9:
+            value = floor(x);
+            break;
+        case 10:
+            value = ceil(x);
+            break;
+        case 11:
+            value = fabs(x);
+            break;
+    }
+
+    setFloat(mem, _result, value);
 }

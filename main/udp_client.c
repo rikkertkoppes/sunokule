@@ -32,7 +32,7 @@
 
 #define RMT_TX_CHANNEL RMT_CHANNEL_0
 #define DATA_PIN 26
-#define NUM_LEDS 30
+#define NUM_LEDS 600
 #define EXAMPLE_CHASE_SPEED_MS 50
 #define SHADER_MEM_SIZE 256
 #define PROG_MEM_SIZE 256
@@ -195,6 +195,12 @@ void execute(byte *mem, byte *prog, byte *counter) {
             case 5:
                 value(mem, prog, counter);
                 break;
+            case 6:
+                math(mem, prog, counter);
+                break;
+            case 7:
+                trig(mem, prog, counter);
+                break;
         }
         op = instruction_fetch(mem, prog, counter);
     }
@@ -255,6 +261,41 @@ byte _colorloop[] = {
 
     3, 0, 1, 2, 3, 4, 5, 6, 7, 10, 18,
     4, 18, 8, 9, 19,
+    0};
+
+byte _scan2[] = {
+    20,
+
+    51, 51, 51, 63,
+    0, 0, 128, 63,
+    154, 153, 153, 62,
+    0, 0, 128, 63,
+    0, 0, 128, 64,
+    0, 0, 64, 64,
+    0, 0, 128, 191,
+    0, 0, 0, 64,
+    0, 0, 0, 64,
+    0, 0, 0, 0,
+    0, 0, 128, 63,
+    0, 0, 128, 191,
+    0, 0, 0, 64,
+    0, 0, 0, 64,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 128, 63,
+    0, 0, 160, 64,
+    205, 204, 204, 61,
+    0, 0, 128, 63,
+
+    5, 0, 1, 28,
+    5, 2, 3, 29,
+    6, 29, 4, 5, 30,
+    6, 30, 6, 7, 31,
+    3, 8, 28, 31, 30, 30, 9, 10, 25, 20, 32,
+    6, 20, 11, 12, 33,
+    3, 13, 28, 14, 30, 15, 30, 16, 25, 33, 34,
+    6, 32, 34, 17, 35,
+    4, 18, 19, 35, 36,
     0};
 
 int framecount = 0;
@@ -327,7 +368,7 @@ static void led_strip_task(void *pvParameters) {
     ESP_ERROR_CHECK(strip->clear(strip, 100));
     // Show simple rainbow chasing pattern
 
-    byte *shader = _weather;
+    byte *shader = _scan2;
 
     // initialize working memory
     setMem(mem, shader);
