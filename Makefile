@@ -3,9 +3,10 @@
 # project subdirectory.
 #
 
-PROJECT_NAME := udp_client
+PROJECT_NAME := led_shader
 
 EXTRA_COMPONENT_DIRS = $(IDF_PATH)/examples/common_components/protocol_examples_common
 
 include $(IDF_PATH)/make/project.mk
+include $(PROJECT_PATH)/main/component.mk
 
