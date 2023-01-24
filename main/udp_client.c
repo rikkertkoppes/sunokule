@@ -192,116 +192,102 @@ void execute(byte *mem, byte *prog, byte *counter) {
             case 4:
                 hsv2rgb(mem, prog, counter);
                 break;
+            case 5:
+                value(mem, prog, counter);
+                break;
         }
         op = instruction_fetch(mem, prog, counter);
     }
 }
 
-rgb weather(byte *mem, float y) {
-    // set mem state
-    // bottom color
-    setFloat(mem, 0, 0 / 255.0);
-    setFloat(mem, 1, 92 / 255.0);
-    setFloat(mem, 2, 179 / 255.0);
-    // top color
-    setFloat(mem, 3, 255 / 255.0);
-    setFloat(mem, 4, 213 / 255.0);
-    setFloat(mem, 5, 0 / 255.0);
-    // t value
-    setFloat(mem, 6, y);
+// wheather shader
+byte _weather[] = {
+    8,
 
-    // execute
-    byte prog[] = {
-        1, 0, 1, 7,       // color
-        1, 3, 4, 10,      // color
-        2, 6, 7, 10, 13,  // gradient
-        0};               // end of program
-    byte counter = 0;
-    execute(mem, prog, &counter);
+    0, 0, 0, 0,
+    185, 184, 184, 62,
+    180, 179, 51, 63,
+    0, 0, 128, 63,
+    0, 0, 128, 63,
+    214, 213, 85, 63,
+    0, 0, 0, 0,
+    0, 0, 128, 63,
 
-    // retrieve rgb values
-    float r = getFloat(mem, 13);  // 52
-    float g = getFloat(mem, 14);
-    float b = getFloat(mem, 15);
-    rgb col = {r, g, b};
-    return col;
-}
+    1, 0, 3, 16,
+    1, 4, 7, 20,
+    2, 11, 16, 20, 24,
+    0};
 
-rgb rainbow(byte *mem, float t, float u) {
-    // set mem state
-    setFloat(mem, 0, 1.0);   // period
-    setFloat(mem, 1, 0.3);   // speed
-    setFloat(mem, 2, 0.0);   // phase
-    setFloat(mem, 3, 0.5);   // duty
-    setFloat(mem, 4, 0.5);   // leading
-    setFloat(mem, 5, 0.0);   // trailing
-    setFloat(mem, 6, 1.0);   // smooth
-    setFloat(mem, 7, u);     // x
-    setFloat(mem, 8, t);     // t
-    setFloat(mem, 9, 1.0);   // saturation
-    setFloat(mem, 10, 1.0);  // brightness
+byte _rainbow[] = {
+    11,
 
-    // execute
-    byte prog[] = {
-        3, 0, 1, 2, 3, 4, 5, 6, 7, 8, 11,  // waveform
-        4, 11, 9, 10, 12,                  // hsv2rgb
-        0};                                // end of program
-    byte counter = 0;
-    execute(mem, prog, &counter);
-    // waveform(mem, 0, 1, 2, 3, 4, 5, 6, 7, 8, 11);
-    // hsv2rgb(mem, 11, 9, 10, 12);
+    154, 153, 153, 62,
+    0, 0, 128, 63,
+    0, 0, 128, 63,
+    0, 0, 0, 0,
+    0, 0, 0, 63,
+    0, 0, 0, 63,
+    0, 0, 0, 0,
+    0, 0, 128, 63,
+    0, 0, 128, 63,
+    0, 0, 128, 63,
+    0, 0, 128, 63,
 
-    // retrieve rgb values
-    float r = getFloat(mem, 12);
-    float g = getFloat(mem, 13);
-    float b = getFloat(mem, 14);
-    rgb col = {r, g, b};
-    return col;
-}
+    5, 0, 1, 19,
+    3, 2, 19, 3, 4, 5, 6, 7, 16, 11, 20,
+    5, 8, 9, 21,
+    4, 20, 10, 21, 22,
+    0};
 
-rgb colorloop(byte *mem, float t) {
-    // set mem state
-    setFloat(mem, 0, 1.0);   // period
-    setFloat(mem, 1, 0.2);   // speed
-    setFloat(mem, 2, 0.0);   // phase
-    setFloat(mem, 3, 0.5);   // duty
-    setFloat(mem, 4, 0.5);   // leading
-    setFloat(mem, 5, 0.0);   // trailing
-    setFloat(mem, 6, 1.0);   // smooth
-    setFloat(mem, 7, 0.0);   // x
-    setFloat(mem, 8, t);     // t
-    setFloat(mem, 9, 1.0);   // saturation
-    setFloat(mem, 10, 1.0);  // value
+byte _colorloop[] = {
+    10,
 
-    // execute
-    byte prog[] = {
-        3, 0, 1, 2, 3, 4, 5, 6, 7, 8, 11,  // waveform
-        4, 11, 9, 10, 12,                  // hsv2rgb
-        0};                                // end of program
-    byte counter = 0;
-    execute(mem, prog, &counter);
-    // waveform(mem, 0, 1, 2, 3, 4, 5, 6, 7, 8, 11);
-    // hsv2rgb(mem, 11, 9, 10, 12);
+    0, 0, 128, 63,
+    205, 204, 76, 62,
+    0, 0, 0, 0,
+    0, 0, 0, 63,
+    0, 0, 0, 63,
+    0, 0, 0, 0,
+    0, 0, 128, 63,
+    0, 0, 0, 0,
+    0, 0, 128, 63,
+    0, 0, 128, 63,
 
-    // retrieve rgb values
-    float r = getFloat(mem, 12);
-    float g = getFloat(mem, 13);
-    float b = getFloat(mem, 14);
-    rgb col = {r, g, b};
-    return col;
-}
+    3, 0, 1, 2, 3, 4, 5, 6, 7, 10, 18,
+    4, 18, 8, 9, 19,
+    0};
 
 int framecount = 0;
 
 // frame renderer, by using a shader and incoming data
-void frame(led_strip_t *strip, uint8_t shader, float clk) {
+void frame(led_strip_t *strip, byte *shader, float clk) {
     for (int j = 0; j < NUM_LEDS; j += 1) {
+        size_t mem_end = shader[0];
         float x = ledX(j);
-        rgb col = weather(mem, x);
-        // rgb col = rainbow(mem, clk, x);
-        // rgb col = colorloop(mem, clk);
-        // ESP_LOGI(TAG, "rgb %f %f %f", col.r, col.g, col.b);
-        led_strip_setPixelRGB(strip, j, col.r, col.g, col.b);
+        // set params
+        setFloat(mem, mem_end, clk);
+        setFloat(mem, mem_end + 2, x);
+        setFloat(mem, mem_end + 3, x);  // TODO: should be y
+        setFloat(mem, mem_end + 4, x);  // TODO: should be z
+        setFloat(mem, mem_end + 5, x);  // TODO: should be u
+        setFloat(mem, mem_end + 6, x);  // TODO: should be v
+        setFloat(mem, mem_end + 7, x);  // TODO: should be w
+
+        // execute
+        byte counter = 0;
+        byte *prog = shader + shader[0] * 4 + 1;
+        execute(mem, prog, &counter);
+
+        // get result pointer
+        byte _result = prog[counter - 2];
+
+        // retrieve rgb values
+        float r = getFloat(mem, _result);
+        float g = getFloat(mem, _result + 1);
+        float b = getFloat(mem, _result + 2);
+
+        // ESP_LOGI(TAG, "rgb %f %f %f", r, g, b);
+        led_strip_setPixelRGB(strip, j, r, g, b);
     }
     framecount++;
     strip->refresh(strip, 50);
@@ -341,13 +327,18 @@ static void led_strip_task(void *pvParameters) {
     ESP_ERROR_CHECK(strip->clear(strip, 100));
     // Show simple rainbow chasing pattern
 
+    byte *shader = _weather;
+
+    // initialize working memory
+    setMem(mem, shader);
+
     while (true) {
         uint32_t t = clock();
         uint32_t elapsed = t - time;
         time = t;
         clk += (float)elapsed * tick;
 
-        frame(strip, 0, clk);
+        frame(strip, shader, clk);
 
         vTaskDelay(pdMS_TO_TICKS(1));
     }
