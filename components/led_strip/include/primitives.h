@@ -18,6 +18,11 @@ void setFloat(byte *mem, byte ptr, float f) {
     memcpy(mem + ptr * 4, (byte *)(&f), 4);
 }
 
+void setMem(byte *mem, byte *data) {
+    byte size = data[0] * 4;
+    memcpy(mem, data + 1, size);
+}
+
 // runner
 byte instruction_fetch(byte *mem, byte *prog, byte *counter) {
     byte op = *(prog + *(counter));
@@ -42,6 +47,14 @@ void color(byte *mem, byte *prog, byte *counter) {
     setFloat(mem, _result, r);
     setFloat(mem, _result + 1, g);
     setFloat(mem, _result + 2, b);
+}
+
+void value(byte *mem, byte *prog, byte *counter) {
+    byte _val = data_fetch(mem, prog, counter);
+    byte _control = data_fetch(mem, prog, counter);
+    byte _result = data_fetch(mem, prog, counter);
+    float val = getFloat(mem, _val);
+    setFloat(mem, _result, val);
 }
 
 void gradient(byte *mem, byte *prog, byte *counter) {
