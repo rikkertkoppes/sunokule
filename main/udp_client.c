@@ -32,7 +32,7 @@
 
 #define RMT_TX_CHANNEL RMT_CHANNEL_0
 #define DATA_PIN 26
-#define NUM_LEDS 600
+#define NUM_LEDS 30
 #define EXAMPLE_CHASE_SPEED_MS 50
 #define SHADER_MEM_SIZE 256
 #define PROG_MEM_SIZE 256
@@ -298,6 +298,34 @@ byte _scan2[] = {
     4, 18, 19, 35, 36,
     0};
 
+byte _rain[] = {
+    15,
+
+    0, 0, 224, 64,
+    0, 0, 0, 192,
+    0, 0, 0, 0,
+    0, 0, 224, 64,
+    0, 0, 128, 62,
+    0, 0, 0, 64,
+    0, 0, 0, 0,
+    0, 0, 128, 63,
+    0, 0, 0, 0,
+    0, 0, 0, 63,
+    0, 0, 0, 0,
+    0, 0, 0, 63,
+    0, 0, 128, 63,
+    205, 204, 76, 62,
+    0, 0, 128, 63,
+
+    7, 17, 0, 23,
+    6, 23, 1, 2, 24,
+    7, 17, 3, 25,
+    6, 24, 4, 5, 26,
+    6, 15, 25, 6, 27,
+    3, 26, 7, 8, 9, 10, 11, 12, 18, 27, 28,
+    4, 13, 14, 28, 29,
+    0};
+
 int framecount = 0;
 
 // frame renderer, by using a shader and incoming data
@@ -368,7 +396,7 @@ static void led_strip_task(void *pvParameters) {
     ESP_ERROR_CHECK(strip->clear(strip, 100));
     // Show simple rainbow chasing pattern
 
-    byte *shader = _scan2;
+    byte *shader = _rain;
 
     // initialize working memory
     setMem(mem, shader);

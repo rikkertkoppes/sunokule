@@ -22,7 +22,7 @@ float smoothstep(float min, float max, float x) {
 }
 // any -> [0,1]
 float rnd(float seed) {
-    return frac(sin(seed) * 100000.0);
+    return frac(sin(seed + 873682) * 43758.5453);
 }
 // any -> [-1,1]
 float triangular(float x) {

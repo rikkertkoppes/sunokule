@@ -240,10 +240,10 @@ void trig(byte *mem, byte *prog, byte *counter) {
             value = tan(2 * M_PI * x);
             break;
         case 6:
-            value = fmod(x, 1.0);
+            value = frac(x);
             break;
         case 7:
-            value = (float)rand() / (float)(RAND_MAX);
+            value = rnd(x);
             break;
         case 8:
             value = round(x);
