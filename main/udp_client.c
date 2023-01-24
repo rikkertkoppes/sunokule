@@ -25,6 +25,7 @@
 #include "lwip/err.h"
 #include "lwip/sockets.h"
 #include "lwip/sys.h"
+#include "mapping.h"
 #include "math.h"
 #include "nvs_flash.h"
 #include "primitives.h"
@@ -32,7 +33,7 @@
 
 #define RMT_TX_CHANNEL RMT_CHANNEL_0
 #define DATA_PIN 26
-#define NUM_LEDS 30
+#define NUM_LEDS 311
 #define EXAMPLE_CHASE_SPEED_MS 50
 #define SHADER_MEM_SIZE 256
 #define PROG_MEM_SIZE 256
@@ -152,22 +153,11 @@ void wifi_init_sta(void) {
     vEventGroupDelete(s_wifi_event_group);
 }
 
-typedef struct {
-    float r;
-    float g;
-    float b;
-} rgb;
-
 /**
  * expecting rgb as a float in [0,1]
  */
 void led_strip_setPixelRGB(led_strip_t *strip, u_int32_t index, float r, float g, float b) {
     strip->set_pixel(strip, index, 255 * r, 255 * g, 255 * b);
-}
-
-// from [0,1]
-float ledX(uint32_t index) {
-    return (float)index / (NUM_LEDS - 1);
 }
 
 static byte mem[SHADER_MEM_SIZE];
@@ -315,7 +305,7 @@ byte _rain[] = {
     0, 0, 0, 63,
     0, 0, 128, 63,
     205, 204, 76, 62,
-    0, 0, 128, 63,
+    0, 0, 0, 0,
 
     7, 17, 0, 23,
     6, 23, 1, 2, 24,
@@ -326,21 +316,27 @@ byte _rain[] = {
     4, 13, 14, 28, 29,
     0};
 
+byte _solid[] = {
+    4,
+
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 128, 63,
+
+    1, 0, 3, 12,
+    0};
+
 int framecount = 0;
 
 // frame renderer, by using a shader and incoming data
 void frame(led_strip_t *strip, byte *shader, float clk) {
     for (int j = 0; j < NUM_LEDS; j += 1) {
         size_t mem_end = shader[0];
-        float x = ledX(j);
         // set params
         setFloat(mem, mem_end, clk);
-        setFloat(mem, mem_end + 2, x);
-        setFloat(mem, mem_end + 3, x);  // TODO: should be y
-        setFloat(mem, mem_end + 4, x);  // TODO: should be z
-        setFloat(mem, mem_end + 5, x);  // TODO: should be u
-        setFloat(mem, mem_end + 6, x);  // TODO: should be v
-        setFloat(mem, mem_end + 7, x);  // TODO: should be w
+        // copy mapping directly from in memory
+        setMapping(mem, mem_end + 2, mapping, j);
 
         // execute
         byte counter = 0;
@@ -396,7 +392,7 @@ static void led_strip_task(void *pvParameters) {
     ESP_ERROR_CHECK(strip->clear(strip, 100));
     // Show simple rainbow chasing pattern
 
-    byte *shader = _rain;
+    byte *shader = _scan2;
 
     // initialize working memory
     setMem(mem, shader);
