@@ -269,8 +269,6 @@ void frame(led_strip_t *strip, led_strip_t *strip1, byte *shader, float clk) {
     strip->wait(strip1, 50);
 }
 
-const uint8_t NUM_EFFECTS = 8;
-
 static void fps_task(void *pvParameters) {
     while (true) {
         ESP_LOGI(TAG, "fps %i", framecount);
@@ -335,11 +333,6 @@ static void led_strip_task(void *pvParameters) {
 
         vTaskDelay(pdMS_TO_TICKS(1));
     }
-}
-
-uint8_t step = 256 / NUM_EFFECTS;
-uint8_t effect(uint8_t index) {
-    return step / 2 + step * index;
 }
 
 void app_main(void) {
