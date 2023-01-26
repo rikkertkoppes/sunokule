@@ -265,3 +265,36 @@ void trig(byte *mem, byte *prog, byte *counter) {
 
     setFloat(mem, _result, value);
 }
+
+void execute(byte *mem, byte *prog, byte *counter) {
+    byte op = instruction_fetch(mem, prog, counter);
+    while (op) {
+        switch (op) {
+            case 0:
+                // end of program
+                return;
+            case 1:
+                color(mem, prog, counter);
+                break;
+            case 2:
+                gradient(mem, prog, counter);
+                break;
+            case 3:
+                waveform(mem, prog, counter);
+                break;
+            case 4:
+                hsv2rgb(mem, prog, counter);
+                break;
+            case 5:
+                value(mem, prog, counter);
+                break;
+            case 6:
+                math(mem, prog, counter);
+                break;
+            case 7:
+                trig(mem, prog, counter);
+                break;
+        }
+        op = instruction_fetch(mem, prog, counter);
+    }
+}

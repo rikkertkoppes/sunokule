@@ -46,6 +46,27 @@ static const char *TAG = "example";
 
 typedef unsigned char byte;
 
+led_strip_t *stripCreateInit(gpio_num_t gpio_num, rmt_channel_t channel, uint32_t num_leds) {
+    // strip 0
+    rmt_config_t config = RMT_DEFAULT_CONFIG_TX(gpio_num, channel);
+    // set counter clock to 40MHz
+    config.clk_div = 2;
+
+    ESP_ERROR_CHECK(rmt_config(&config));
+    ESP_ERROR_CHECK(rmt_driver_install(config.channel, 0, 0));
+
+    // install ws2812 driver
+    led_strip_config_t strip_config = LED_STRIP_DEFAULT_CONFIG(num_leds, (led_strip_dev_t)config.channel);
+    led_strip_t *strip = led_strip_new_rmt_ws2812(&strip_config);
+    if (!strip) {
+        ESP_LOGE(TAG, "install WS2812 driver failed");
+    }
+    // Clear LED strip (turn off all LEDs)
+    ESP_ERROR_CHECK(strip->clear(strip, 100));
+
+    return strip;
+}
+
 /**
  * expecting rgb as a float in [0,1]
  */
@@ -55,39 +76,6 @@ void led_strip_setPixelRGB(led_strip_t *strip, u_int32_t index, float r, float g
 
 static byte mem[SHADER_MEM_SIZE];
 static byte prog[PROG_MEM_SIZE];
-
-void execute(byte *mem, byte *prog, byte *counter) {
-    byte op = instruction_fetch(mem, prog, counter);
-    while (op) {
-        switch (op) {
-            case 0:
-                // end of program
-                return;
-            case 1:
-                color(mem, prog, counter);
-                break;
-            case 2:
-                gradient(mem, prog, counter);
-                break;
-            case 3:
-                waveform(mem, prog, counter);
-                break;
-            case 4:
-                hsv2rgb(mem, prog, counter);
-                break;
-            case 5:
-                value(mem, prog, counter);
-                break;
-            case 6:
-                math(mem, prog, counter);
-                break;
-            case 7:
-                trig(mem, prog, counter);
-                break;
-        }
-        op = instruction_fetch(mem, prog, counter);
-    }
-}
 
 // wheather shader
 byte _weather[] = {
@@ -284,39 +272,9 @@ static void led_strip_task(void *pvParameters) {
     // uint16_t start_rgb = 0;
     uint32_t time = clock();
 
-    // strip 0
-    rmt_config_t config = RMT_DEFAULT_CONFIG_TX(DATA_PIN, RMT_TX_CHANNEL);
-    // set counter clock to 40MHz
-    config.clk_div = 2;
-
-    ESP_ERROR_CHECK(rmt_config(&config));
-    ESP_ERROR_CHECK(rmt_driver_install(config.channel, 0, 0));
-
-    // install ws2812 driver
-    led_strip_config_t strip_config = LED_STRIP_DEFAULT_CONFIG(NUM_LEDS, (led_strip_dev_t)config.channel);
-    led_strip_t *strip = led_strip_new_rmt_ws2812(&strip_config);
-    if (!strip) {
-        ESP_LOGE(TAG, "install WS2812 driver failed");
-    }
-    // Clear LED strip (turn off all LEDs)
-    ESP_ERROR_CHECK(strip->clear(strip, 100));
-
-    // strip 0
-    rmt_config_t config1 = RMT_DEFAULT_CONFIG_TX(DATA_PIN1, RMT_TX_CHANNEL1);
-    // set counter clock to 40MHz
-    config1.clk_div = 2;
-
-    ESP_ERROR_CHECK(rmt_config(&config1));
-    ESP_ERROR_CHECK(rmt_driver_install(config1.channel, 0, 0));
-
-    // install ws2812 driver
-    led_strip_config_t strip_config1 = LED_STRIP_DEFAULT_CONFIG(NUM_LEDS, (led_strip_dev_t)config1.channel);
-    led_strip_t *strip1 = led_strip_new_rmt_ws2812(&strip_config1);
-    if (!strip1) {
-        ESP_LOGE(TAG, "install WS2812 driver failed");
-    }
-    // Clear LED strip (turn off all LEDs)
-    ESP_ERROR_CHECK(strip1->clear(strip1, 100));
+    // initialize strip segments
+    led_strip_t *strip = stripCreateInit(DATA_PIN, RMT_TX_CHANNEL, NUM_LEDS);
+    led_strip_t *strip1 = stripCreateInit(DATA_PIN1, RMT_TX_CHANNEL1, NUM_LEDS);
 
     byte *shader = _scan2;
 
@@ -324,9 +282,11 @@ static void led_strip_task(void *pvParameters) {
     setMem(mem, shader);
 
     while (true) {
+        // t and elapsed are in ms;
         uint32_t t = clock();
         uint32_t elapsed = t - time;
         time = t;
+        // clock value in seconds
         clk += (float)elapsed * tick;
 
         frame(strip, strip1, shader, clk);
