@@ -34,9 +34,11 @@
 #include "wifi_conn.h"
 
 #define RMT_TX_CHANNEL RMT_CHANNEL_0
+#define RMT_TX_CHANNEL1 RMT_CHANNEL_1
 #define DATA_PIN 26
-#define NUM_LEDS 311
-#define EXAMPLE_CHASE_SPEED_MS 50
+#define DATA_PIN1 27
+#define NUM_LEDS 300
+
 #define SHADER_MEM_SIZE 256
 #define PROG_MEM_SIZE 256
 
@@ -221,8 +223,8 @@ byte _solid[] = {
 int framecount = 0;
 
 // frame renderer, by using a shader and incoming data
-void frame(led_strip_t *strip, byte *shader, float clk) {
-    for (int j = 0; j < NUM_LEDS; j += 1) {
+void frame(led_strip_t *strip, led_strip_t *strip1, byte *shader, float clk) {
+    for (int j = 0; j < NUM_LEDS * 2; j += 1) {
         size_t mem_end = shader[0];
         // set params
         setFloat(mem, mem_end, clk);
@@ -243,10 +245,28 @@ void frame(led_strip_t *strip, byte *shader, float clk) {
         float b = getFloat(mem, _result + 2);
 
         // ESP_LOGI(TAG, "rgb %f %f %f", r, g, b);
-        led_strip_setPixelRGB(strip, j, r, g, b);
+        if (j < NUM_LEDS) {
+            led_strip_setPixelRGB(strip, j, r, g, b);
+        } else {
+            led_strip_setPixelRGB(strip1, j - NUM_LEDS, r, g, b);
+        }
     }
     framecount++;
-    strip->refresh(strip, 50);
+    /**
+     * note: letting the rmt hardware write multiple strips in parallel,
+     * then waiting for them to finish
+     *
+     * this allows for faster framerates by segmenting the strip
+     * otherwise the strip timing becomes a bottleneck
+     *
+     * sequentially 2x300 leds -> 33fps for scan shader
+     * parallel 2x300 leds -> 45fps for scan shader
+     *
+     */
+    strip->refresh_immediate(strip);
+    strip->refresh_immediate(strip1);
+    strip->wait(strip, 50);
+    strip->wait(strip1, 50);
 }
 
 const uint8_t NUM_EFFECTS = 8;
@@ -266,6 +286,7 @@ static void led_strip_task(void *pvParameters) {
     // uint16_t start_rgb = 0;
     uint32_t time = clock();
 
+    // strip 0
     rmt_config_t config = RMT_DEFAULT_CONFIG_TX(DATA_PIN, RMT_TX_CHANNEL);
     // set counter clock to 40MHz
     config.clk_div = 2;
@@ -281,7 +302,23 @@ static void led_strip_task(void *pvParameters) {
     }
     // Clear LED strip (turn off all LEDs)
     ESP_ERROR_CHECK(strip->clear(strip, 100));
-    // Show simple rainbow chasing pattern
+
+    // strip 0
+    rmt_config_t config1 = RMT_DEFAULT_CONFIG_TX(DATA_PIN1, RMT_TX_CHANNEL1);
+    // set counter clock to 40MHz
+    config1.clk_div = 2;
+
+    ESP_ERROR_CHECK(rmt_config(&config1));
+    ESP_ERROR_CHECK(rmt_driver_install(config1.channel, 0, 0));
+
+    // install ws2812 driver
+    led_strip_config_t strip_config1 = LED_STRIP_DEFAULT_CONFIG(NUM_LEDS, (led_strip_dev_t)config1.channel);
+    led_strip_t *strip1 = led_strip_new_rmt_ws2812(&strip_config1);
+    if (!strip1) {
+        ESP_LOGE(TAG, "install WS2812 driver failed");
+    }
+    // Clear LED strip (turn off all LEDs)
+    ESP_ERROR_CHECK(strip1->clear(strip1, 100));
 
     byte *shader = _scan2;
 
@@ -294,7 +331,7 @@ static void led_strip_task(void *pvParameters) {
         time = t;
         clk += (float)elapsed * tick;
 
-        frame(strip, shader, clk);
+        frame(strip, strip1, shader, clk);
 
         vTaskDelay(pdMS_TO_TICKS(1));
     }
