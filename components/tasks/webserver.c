@@ -94,7 +94,7 @@ static esp_err_t ws_handler(httpd_req_t *req) {
     uint8_t buf[128];
     memset(buf, 0, sizeof(buf));
     ret = ws_read_string(req, buf, sizeof(buf));
-    ESP_LOGI(TAG, "Got packet with message: %s", buf);
+    // ESP_LOGI(TAG, "Got packet with message: %s", buf);
     // xEventGroupSetBits(webserverState, STATE_GOT_PARAMS);
 
     if (eventQueue) {

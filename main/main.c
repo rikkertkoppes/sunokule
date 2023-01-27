@@ -186,7 +186,7 @@ byte _rain[] = {
     0, 0, 0, 63,
     0, 0, 128, 63,
     205, 204, 76, 62,
-    0, 0, 0, 0,
+    0, 0, 128, 63,
 
     7, 16, 0, 22,                           // trig
     6, 22, 1, 2, 23,                        // math
@@ -269,14 +269,18 @@ static void params_task(void *pvParameters) {
     uint8_t data[128];
     while (true) {
         if (xQueueReceive(main_events, data, 1000 / portTICK_PERIOD_MS)) {
-            ESP_LOGI(TAG, "params queue received in main: %s", data);
-            // do something in mem as test
-            float s = getFloat(mem, 13);
-            ESP_LOGI(TAG, "saturation value: %f", s);
-            if (s) {
-                setFloat(mem, 13, 0.0);
-            } else {
-                setFloat(mem, 13, 1.0);
+            printf("part of the buffer:");
+            for (int i = 0; i < 20; i++) {
+                printf("%02X ", data[i]);
+            }
+            printf("\n");
+            uint8_t num_params = data[0];
+            for (uint8_t i = 0; i < num_params; i++) {
+                uint8_t ptr = data[i * 5 + 1];
+                float f;
+                memcpy(&f, data + 2 + i * 5, 4);
+                ESP_LOGI(TAG, "set mem %i to %f", ptr, f);
+                setFloat(mem, ptr, f);
             }
         }
     }
