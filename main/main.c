@@ -42,7 +42,8 @@
 #define SHADER_MEM_SIZE 256
 #define PROG_MEM_SIZE 256
 
-static const char *TAG = "example";
+static const char *TAG = "shader";
+QueueHandle_t main_events;
 
 typedef unsigned char byte;
 
@@ -265,6 +266,23 @@ static void fps_task(void *pvParameters) {
     }
 }
 
+static void params_task(void *pvParameters) {
+    uint8_t data[128];
+    while (true) {
+        if (xQueueReceive(main_events, data, 1000 / portTICK_PERIOD_MS)) {
+            ESP_LOGI(TAG, "params queue received in main: %s", data);
+            // do something in mem as test
+            float s = getFloat(mem, 13);
+            ESP_LOGI(TAG, "saturation value: %f", s);
+            if (s) {
+                setFloat(mem, 13, 0.0);
+            } else {
+                setFloat(mem, 13, 1.0);
+            }
+        }
+    }
+}
+
 static void led_strip_task(void *pvParameters) {
     float clk = 0;
     float tick = 0.001;
@@ -296,15 +314,17 @@ static void led_strip_task(void *pvParameters) {
 }
 
 void app_main(void) {
+    main_events = xQueueCreate(4, 128);
     ESP_LOGI(TAG, "app main, start ledstrip task");
 
     ESP_ERROR_CHECK(nvs_flash_init());
 
     wifi_init_sta();
-    startWebserverTask(4096, 5, NULL);
+    startWebserverTask(4096, 5, NULL, main_events);
 
     // xTaskCreate(udp_client_task, "udp_client", 4096, NULL, 5, NULL);
 
     xTaskCreate(fps_task, "fps", 4096, NULL, 8, NULL);
+    xTaskCreate(params_task, "params", 4096, NULL, 8, NULL);
     xTaskCreatePinnedToCore(led_strip_task, "led_strip", 4096, NULL, 8, NULL, 1);
 }
