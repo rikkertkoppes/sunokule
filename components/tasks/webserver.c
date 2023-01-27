@@ -1,13 +1,16 @@
 #include <esp_http_server.h>
 
 #include "esp_log.h"
+#include "freertos/event_groups.h"
 #include "tcpip_adapter.h"
 
 #define MAX_PAYLOAD_LEN 128
+#define STATE_GOT_PARAMS 1
 
 static const char *TAG = "webserver";
 
 httpd_handle_t server = NULL;
+EventGroupHandle_t webserverState;
 
 static esp_err_t index_handler(httpd_req_t *req) {
     httpd_resp_set_type(req, "text/html");
@@ -91,6 +94,7 @@ static esp_err_t ws_handler(httpd_req_t *req) {
     memset(buf, 0, sizeof(buf));
     ret = ws_read_string(req, buf, sizeof(buf));
     ESP_LOGI(TAG, "Got packet with message: %s", buf);
+    xEventGroupSetBits(webserverState, STATE_GOT_PARAMS);
 
     // send back
     ret = ws_send_string(req, "blalala");
@@ -124,4 +128,36 @@ void start_webserver(void) {
 
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &index_uri));
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &ws_uri));
+}
+
+void webserverTask(void *arg) {
+    webserverState = xEventGroupCreate();
+
+    start_webserver();
+    ESP_LOGI(TAG, "Webserver running");
+
+    EventBits_t stateBits;
+    for (;;) {
+        // TODO: wait for webserver event group bits from handlers to forward stuff to state
+        stateBits = xEventGroupWaitBits(webserverState, STATE_GOT_PARAMS, pdFALSE, pdFALSE, pdMS_TO_TICKS(5000));
+        if (stateBits & STATE_GOT_PARAMS) {
+            ESP_LOGI(TAG, "params received");
+            //     setNeedReboot(true);
+            //     vTaskDelay(5000 / portTICK_RATE_MS);
+            //     MDF_LOGI("rebooting now");
+            //     esp_restart();
+            xEventGroupClearBits(webserverState, STATE_GOT_PARAMS);
+        }
+        // vTaskDelay(5000 / portTICK_RATE_MS);
+    }
+
+    // TODO: from oko main setuptask
+    // stop_webserver(server);
+    // stop_dns_server(dnsserver);
+
+    vTaskDelete(NULL);
+}
+
+void startWebserverTask(int stackSize, int prio, EventGroupHandle_t state) {
+    xTaskCreate(webserverTask, "webserver_task", stackSize, (void *)state, prio, NULL);
 }
