@@ -76,7 +76,7 @@ void led_strip_setPixelRGB(led_strip_t *strip, u_int32_t index, float r, float g
 }
 
 static byte mem[SHADER_MEM_SIZE];
-static byte prog[PROG_MEM_SIZE];
+static byte shader[PROG_MEM_SIZE];
 
 // wheather shader
 byte _weather[] = {
@@ -265,22 +265,37 @@ static void fps_task(void *pvParameters) {
     }
 }
 
+static void setParams(uint8_t *data) {
+    uint8_t num_params = data[0];
+    for (uint8_t i = 0; i < num_params; i++) {
+        uint8_t ptr = data[1 + i * 5];
+        float f;
+        memcpy(&f, data + 2 + i * 5, 4);
+        ESP_LOGI(TAG, "set mem %i to %f", ptr, f);
+        setFloat(mem, ptr, f);
+    }
+}
+
 static void params_task(void *pvParameters) {
-    uint8_t data[128];
+    uint8_t data[PROG_MEM_SIZE];
     while (true) {
         if (xQueueReceive(main_events, data, 1000 / portTICK_PERIOD_MS)) {
             printf("part of the buffer:");
             for (int i = 0; i < 20; i++) {
-                printf("%02X ", data[i]);
+                // printf("%02X ", data[i]);
+                printf("%i ", data[i]);
             }
             printf("\n");
-            uint8_t num_params = data[0];
-            for (uint8_t i = 0; i < num_params; i++) {
-                uint8_t ptr = data[i * 5 + 1];
-                float f;
-                memcpy(&f, data + 2 + i * 5, 4);
-                ESP_LOGI(TAG, "set mem %i to %f", ptr, f);
-                setFloat(mem, ptr, f);
+            uint8_t datatype = data[0];
+            switch (datatype) {
+                case 0:
+                    setShader(shader, data + 2, data[1]);
+                    // reinitialize working memory
+                    setMem(mem, shader);
+                    break;
+                case 1:
+                    setParams(data + 1);
+                    break;
             }
         }
     }
@@ -297,7 +312,7 @@ static void led_strip_task(void *pvParameters) {
     led_strip_t *strip = stripCreateInit(DATA_PIN, RMT_TX_CHANNEL, NUM_LEDS);
     led_strip_t *strip1 = stripCreateInit(DATA_PIN1, RMT_TX_CHANNEL1, NUM_LEDS);
 
-    byte *shader = _scan2;
+    setShader(shader, _scan2, sizeof(_scan2));
 
     // initialize working memory
     setMem(mem, shader);
@@ -317,7 +332,7 @@ static void led_strip_task(void *pvParameters) {
 }
 
 void app_main(void) {
-    main_events = xQueueCreate(4, 128);
+    main_events = xQueueCreate(4, PROG_MEM_SIZE);
     ESP_LOGI(TAG, "app main, start ledstrip task");
 
     ESP_ERROR_CHECK(nvs_flash_init());

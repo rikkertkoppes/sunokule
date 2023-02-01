@@ -24,6 +24,10 @@ void setMem(byte *mem, byte *data) {
     memcpy(mem, data + 1, size);
 }
 
+void setShader(byte *prog, byte *data, byte size) {
+    memcpy(prog, data, size);
+}
+
 void setMapping(byte *mem, byte ptr, byte *mapping, int index) {
     memcpy(mem + ptr * 4, mapping + (index * 24), 24);
 }

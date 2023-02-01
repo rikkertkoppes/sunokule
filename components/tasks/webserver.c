@@ -4,7 +4,7 @@
 #include "freertos/event_groups.h"
 #include "tcpip_adapter.h"
 
-#define MAX_PAYLOAD_LEN 128
+#define MAX_PAYLOAD_LEN 256
 #define STATE_GOT_PARAMS 1
 
 static const char *TAG = "webserver";
@@ -91,7 +91,7 @@ static esp_err_t ws_handler(httpd_req_t *req) {
     esp_err_t ret = ESP_OK;
 
     // read into buffer
-    uint8_t buf[128];
+    uint8_t buf[MAX_PAYLOAD_LEN];
     memset(buf, 0, sizeof(buf));
     ret = ws_read_string(req, buf, sizeof(buf));
     // ESP_LOGI(TAG, "Got packet with message: %s", buf);
@@ -101,8 +101,18 @@ static esp_err_t ws_handler(httpd_req_t *req) {
         xQueueSend(eventQueue, buf, portMAX_DELAY);
     }
 
+    uint8_t datatype = buf[0];
+
     // send back
-    ret = ws_send_string(req, "blalala");
+    switch (datatype) {
+        case 0:
+            ws_send_string(req, "got shader");
+            break;
+        case 1:
+            ws_send_string(req, "got params");
+            break;
+    }
+    // ret = ws_send_string(req, "blalala");
 
     return ret;
 }

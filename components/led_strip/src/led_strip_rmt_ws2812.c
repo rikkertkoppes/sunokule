@@ -109,7 +109,7 @@ static esp_err_t ws2812_refresh_immediate(led_strip_t *strip) {
     esp_err_t ret = ESP_OK;
     ws2812_t *ws2812 = __containerof(strip, ws2812_t, parent);
     STRIP_CHECK(
-        // TODO: last param can be false to not wait for data, in which case we
+        // last argument can be false to not wait for data, in which case we
         // can write to another rmt channel
         // after that, we can wait for both and proceed in the loop
         rmt_write_sample(ws2812->rmt_channel, ws2812->buffer, ws2812->strip_len * 3, false) == ESP_OK,
@@ -128,9 +128,6 @@ static esp_err_t ws2812_refresh(led_strip_t *strip, uint32_t timeout_ms) {
     esp_err_t ret = ESP_OK;
     ws2812_t *ws2812 = __containerof(strip, ws2812_t, parent);
     STRIP_CHECK(
-        // TODO: last param can be false to not wait for data, in which case we
-        // can write to another rmt channel
-        // after that, we can wait for both and proceed in the loop
         rmt_write_sample(ws2812->rmt_channel, ws2812->buffer, ws2812->strip_len * 3, true) == ESP_OK,
         "transmit RMT samples failed", err, ESP_FAIL);
     return rmt_wait_tx_done(ws2812->rmt_channel, pdMS_TO_TICKS(timeout_ms));
