@@ -225,7 +225,7 @@ void frame(led_strip_t *strip, led_strip_t *strip1, byte *shader, float clk) {
         execute(mem, prog, &counter);
 
         // get result pointer
-        byte _result = prog[counter - 2];
+        byte _result = prog[counter];
 
         // retrieve rgb values
         float r = getFloat(mem, _result);
