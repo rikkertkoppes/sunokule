@@ -29,6 +29,31 @@ static esp_err_t index_handler(httpd_req_t *req) {
     return ESP_OK;
 }
 
+esp_err_t ws_broadcast(char *str) {
+    static size_t max_clients = CONFIG_LWIP_MAX_LISTENING_TCP;
+    size_t fds = max_clients;
+    int client_fds[max_clients];
+
+    esp_err_t ret = httpd_get_client_list(server, &fds, client_fds);
+
+    if (ret != ESP_OK) {
+        return ret;
+    }
+
+    for (int i = 0; i < fds; i++) {
+        int client_info = httpd_ws_get_fd_info(server, client_fds[i]);
+        if (client_info == HTTPD_WS_CLIENT_WEBSOCKET) {
+            httpd_ws_frame_t packet;
+            packet.type = HTTPD_WS_TYPE_TEXT;
+            packet.payload = (uint8_t *)str;
+            packet.len = strlen(str);
+            httpd_ws_send_frame_async(server, client_fds[i], &packet);
+        }
+    }
+
+    return ESP_OK;
+}
+
 esp_err_t ws_send_string(httpd_req_t *req, char *str) {
     httpd_ws_frame_t packet;
     packet.type = HTTPD_WS_TYPE_TEXT;

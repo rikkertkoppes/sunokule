@@ -33,11 +33,15 @@
 #include "webserver.h"
 #include "wifi_conn.h"
 
-#define RMT_TX_CHANNEL RMT_CHANNEL_0
+#define RMT_TX_CHANNEL0 RMT_CHANNEL_0
 #define RMT_TX_CHANNEL1 RMT_CHANNEL_1
-#define DATA_PIN 26
-#define DATA_PIN1 27
-#define NUM_LEDS 300
+#define RMT_TX_CHANNEL2 RMT_CHANNEL_2
+#define DATA_PIN0 25
+#define DATA_PIN1 26
+#define DATA_PIN2 27
+#define NUM_LEDS0 200
+#define NUM_LEDS1 200
+#define NUM_LEDS2 196
 
 #define SHADER_MEM_SIZE 256
 #define PROG_MEM_SIZE 256
@@ -46,6 +50,8 @@ static const char *TAG = "shader";
 QueueHandle_t main_events;
 
 typedef unsigned char byte;
+float clk = 0;
+byte power = 0;  // power off
 
 led_strip_t *stripCreateInit(gpio_num_t gpio_num, rmt_channel_t channel, uint32_t num_leds) {
     // strip 0
@@ -211,8 +217,8 @@ byte _solid[] = {
 int framecount = 0;
 
 // frame renderer, by using a shader and incoming data
-void frame(led_strip_t *strip, led_strip_t *strip1, byte *shader, float clk) {
-    for (int j = 0; j < NUM_LEDS * 2; j += 1) {
+void frame(led_strip_t *strip0, led_strip_t *strip1, led_strip_t *strip2, byte *shader, float clk) {
+    for (int j = 0; j < NUM_LEDS0 + NUM_LEDS1 + NUM_LEDS2; j += 1) {
         size_t mem_end = shader[0];
         // set params
         setFloat(mem, mem_end, clk);
@@ -232,11 +238,13 @@ void frame(led_strip_t *strip, led_strip_t *strip1, byte *shader, float clk) {
         float g = getFloat(mem, _result + 1);
         float b = getFloat(mem, _result + 2);
 
-        // ESP_LOGI(TAG, "rgb %f %f %f", r, g, b);
-        if (j < NUM_LEDS) {
-            led_strip_setPixelRGB(strip, j, r, g, b);
+        // ESP_LOGI(TAG, "counter %i, rgb %f %f %f", counter, r, g, b);
+        if (j < NUM_LEDS0) {
+            led_strip_setPixelRGB(strip0, j, r, g, b);
+        } else if (j < (NUM_LEDS0 + NUM_LEDS1)) {
+            led_strip_setPixelRGB(strip1, j - NUM_LEDS0, r, g, b);
         } else {
-            led_strip_setPixelRGB(strip1, j - NUM_LEDS, r, g, b);
+            led_strip_setPixelRGB(strip2, j - NUM_LEDS0 - NUM_LEDS1, r, g, b);
         }
     }
     framecount++;
@@ -260,7 +268,12 @@ void frame(led_strip_t *strip, led_strip_t *strip1, byte *shader, float clk) {
 static void fps_task(void *pvParameters) {
     while (true) {
         ESP_LOGI(TAG, "fps %i", framecount);
+        char data[80];
+        sprintf(data, "{\"fps\":%i,\"power\":%i}", framecount, power);
+        ws_broadcast(data);
+
         framecount = 0;
+
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
@@ -289,6 +302,8 @@ static void params_task(void *pvParameters) {
             uint8_t datatype = data[0];
             switch (datatype) {
                 case 0:
+                    // reset shader time
+                    clk = 0;
                     setShader(shader, data + 2, data[1]);
                     // reinitialize working memory
                     setMem(mem, shader);
@@ -296,21 +311,23 @@ static void params_task(void *pvParameters) {
                 case 1:
                     setParams(data + 1);
                     break;
+                case 2:
+                    power = data[1];
             }
         }
     }
 }
 
 static void led_strip_task(void *pvParameters) {
-    float clk = 0;
     float tick = 0.001;
 
     // uint16_t start_rgb = 0;
     uint32_t time = clock();
 
     // initialize strip segments
-    led_strip_t *strip = stripCreateInit(DATA_PIN, RMT_TX_CHANNEL, NUM_LEDS);
-    led_strip_t *strip1 = stripCreateInit(DATA_PIN1, RMT_TX_CHANNEL1, NUM_LEDS);
+    led_strip_t *strip0 = stripCreateInit(DATA_PIN0, RMT_TX_CHANNEL0, NUM_LEDS0);
+    led_strip_t *strip1 = stripCreateInit(DATA_PIN1, RMT_TX_CHANNEL1, NUM_LEDS1);
+    led_strip_t *strip2 = stripCreateInit(DATA_PIN2, RMT_TX_CHANNEL2, NUM_LEDS2);
 
     setShader(shader, _scan2, sizeof(_scan2));
 
@@ -325,7 +342,14 @@ static void led_strip_task(void *pvParameters) {
         // clock value in seconds
         clk += (float)elapsed * tick;
 
-        frame(strip, strip1, shader, clk);
+        if (power) {
+            frame(strip0, strip1, strip2, shader, clk);
+        } else {
+            strip0->clear(strip0, 50);
+            strip1->clear(strip1, 50);
+            strip2->clear(strip2, 50);
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
 
         vTaskDelay(pdMS_TO_TICKS(1));
     }
