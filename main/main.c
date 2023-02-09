@@ -312,6 +312,8 @@ static void params_task(void *pvParameters) {
                     setParams(data + 1);
                     break;
                 case 2:
+                    // reset shader time
+                    clk = 0;
                     power = data[1];
             }
         }
