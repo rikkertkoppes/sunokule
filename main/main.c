@@ -318,6 +318,7 @@ static void params_task(void *pvParameters) {
                     // reset shader time
                     clk = 0;
                     power = data[1];
+                    savePowerState(power);
             }
         }
     }
@@ -336,6 +337,8 @@ static void led_strip_task(void *pvParameters) {
 
     // get shader from NVS
     readShader(shader);
+
+    power = readPowerState();
 
     // initialize working memory
     setMem(mem, shader);

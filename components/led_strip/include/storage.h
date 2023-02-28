@@ -5,43 +5,84 @@
 typedef unsigned char byte;
 
 byte _scan2[] = {
-    20,
+    19,
 
-    51, 51, 51, 63,
-    0, 0, 128, 63,
-    154, 153, 153, 62,
-    0, 0, 128, 63,
-    0, 0, 128, 64,
-    0, 0, 64, 64,
-    0, 0, 128, 191,
-    0, 0, 0, 64,
-    0, 0, 0, 64,
-    0, 0, 0, 0,
-    0, 0, 128, 63,
-    0, 0, 128, 191,
-    0, 0, 0, 64,
-    0, 0, 0, 64,
-    0, 0, 0, 0,
-    0, 0, 0, 0,
-    0, 0, 128, 63,
-    0, 0, 160, 64,
-    205, 204, 204, 61,
-    0, 0, 128, 63,
+    205, 204, 204, 61,  // 0: 0.1
+    0, 0, 128, 63,      // 1: 1
+    0, 0, 160, 64,      // 2: 5
+    0, 0, 0, 192,       // 3: -2
+    0, 0, 0, 0,         // 4: 0
+    0, 0, 0, 0,         // 5: 0
+    0, 0, 128, 63,      // 6: 1
+    0, 0, 0, 0,         // 7: 0
+    0, 0, 0, 0,         // 8: 0
+    0, 0, 128, 64,      // 9: 4
+    0, 0, 64, 64,       // 10: 3
+    205, 204, 204, 61,  // 11: 0.1
+    0, 0, 128, 63,      // 12: true
+    205, 204, 204, 62,  // 13: 0.4
+    0, 0, 128, 63,      // 14: true
+    0, 0, 0, 64,        // 15: 2
+    0, 0, 0, 0,         // 16: 0
+    0, 0, 0, 0,         // 17: 0
+    0, 0, 128, 63,      // 18: 1
 
-    5, 0, 1, 28,
-    5, 2, 3, 29,
-    6, 29, 4, 5, 30,
-    6, 30, 6, 7, 31,
-    3, 8, 28, 31, 30, 30, 9, 10, 25, 20, 32,
-    6, 20, 11, 12, 33,
-    3, 13, 28, 14, 30, 15, 30, 16, 25, 33, 34,
-    6, 32, 34, 17, 35,
-    4, 18, 19, 35, 36,
-    0};
+    5, 13, 14, 35,                              // 0: n99929
+    5, 11, 12, 34,                              // 4: n961742
+    6, 34, 9, 10, 33,                           // 8: size
+    6, 7, 24, 8, 32,                            // 13: n436392
+    3, 15, 35, 16, 33, 33, 17, 18, 32, 19, 36,  // 18: n353535
+    3, 3, 35, 4, 33, 5, 33, 6, 32, 19, 31,      // 29: n676149
+    6, 36, 31, 2, 30,                           // 40: r6
+    4, 0, 1, 30, 27,                            // 45: r7
+    0, 27                                       // 50: end program
+};
+
+esp_err_t savePowerState(byte state) {
+    nvs_handle_t my_handle;
+    esp_err_t err = ESP_OK;
+
+    // Open
+    err = nvs_open(STORAGE_NAMESPACE, NVS_READWRITE, &my_handle);
+    if (err != ESP_OK) return err;
+
+    // Write shader
+    err = nvs_set_u8(my_handle, "power", state);
+
+    if (err != ESP_OK) {
+        nvs_close(my_handle);
+        return err;
+    }
+
+    // Commit
+    err = nvs_commit(my_handle);
+
+    // Close
+    nvs_close(my_handle);
+    return err;
+}
+byte readPowerState() {
+    nvs_handle_t my_handle;
+    byte state = 0;
+    esp_err_t err;
+
+    // Open
+    err = nvs_open(STORAGE_NAMESPACE, NVS_READWRITE, &my_handle);
+    if (err != ESP_OK) return state;
+
+    // read power state
+    err = nvs_get_u8(my_handle, "power", &state);
+    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+        nvs_close(my_handle);
+        return 0;
+    }
+
+    return state;
+}
 
 esp_err_t saveShader(byte* prog, size_t size) {
     nvs_handle_t my_handle;
-    esp_err_t err;
+    esp_err_t err = ESP_OK;
 
     // Open
     err = nvs_open(STORAGE_NAMESPACE, NVS_READWRITE, &my_handle);
@@ -57,14 +98,10 @@ esp_err_t saveShader(byte* prog, size_t size) {
 
     // Commit
     err = nvs_commit(my_handle);
-    if (err != ESP_OK) {
-        nvs_close(my_handle);
-        return err;
-    }
 
     // Close
     nvs_close(my_handle);
-    return ESP_OK;
+    return err;
 }
 
 esp_err_t readShader(byte* data) {
