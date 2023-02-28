@@ -131,10 +131,10 @@ static esp_err_t ws_handler(httpd_req_t *req) {
     // send back
     switch (datatype) {
         case 0:
-            ws_send_string(req, "got shader");
+            ws_send_string(req, "{\"message\":\"got shader\"}");
             break;
         case 1:
-            ws_send_string(req, "got params");
+            ws_send_string(req, "{\"message\":\"got params\"}");
             break;
     }
     // ret = ws_send_string(req, "blalala");
