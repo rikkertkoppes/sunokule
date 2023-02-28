@@ -30,6 +30,7 @@
 #include "nvs_flash.h"
 #include "primitives.h"
 #include "protocol_examples_common.h"
+#include "storage.h"
 #include "webserver.h"
 #include "wifi_conn.h"
 
@@ -302,6 +303,8 @@ static void params_task(void *pvParameters) {
             uint8_t datatype = data[0];
             switch (datatype) {
                 case 0:
+                    // store shader in NVS
+                    saveShader(data + 2, data[1]);
                     // reset shader time
                     clk = 0;
                     setShader(shader, data + 2, data[1]);
@@ -331,7 +334,8 @@ static void led_strip_task(void *pvParameters) {
     led_strip_t *strip1 = stripCreateInit(DATA_PIN1, RMT_TX_CHANNEL1, NUM_LEDS1);
     led_strip_t *strip2 = stripCreateInit(DATA_PIN2, RMT_TX_CHANNEL2, NUM_LEDS2);
 
-    setShader(shader, _scan2, sizeof(_scan2));
+    // get shader from NVS
+    readShader(shader);
 
     // initialize working memory
     setMem(mem, shader);
