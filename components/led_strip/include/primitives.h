@@ -46,6 +46,41 @@ byte data_fetch(byte *mem, byte *prog, byte *counter) {
 }
 
 // primitives
+void condition(byte *mem, byte *prog, byte *counter) {
+    byte _condition = data_fetch(mem, prog, counter);
+    byte _ref = data_fetch(mem, prog, counter);
+    float condition = getFloat(mem, _condition);
+    // ESP_LOGI("condition", "condition %f", condition);
+    if (condition) {
+        // just proceed to next instruction
+    } else {
+        // jump to ref
+        *counter = _ref;
+    }
+}
+
+void jump(byte *mem, byte *prog, byte *counter) {
+    byte _ref = data_fetch(mem, prog, counter);
+    *counter = _ref;
+}
+
+void store_jump(byte *mem, byte *prog, byte *counter) {
+    byte _from = data_fetch(mem, prog, counter);
+    byte _to = data_fetch(mem, prog, counter);
+    byte _ref = data_fetch(mem, prog, counter);
+    float r = getFloat(mem, _from);
+    float g = getFloat(mem, _from + 1);
+    float b = getFloat(mem, _from + 2);
+    setFloat(mem, _to, r);
+    setFloat(mem, _to + 1, g);
+    setFloat(mem, _to + 2, b);
+    *counter = _ref;
+}
+
+void label(byte *mem, byte *prog, byte *counter) {
+    // just skips to next instruction
+}
+
 void color(byte *mem, byte *prog, byte *counter) {
     byte _col = data_fetch(mem, prog, counter);
     byte _control = data_fetch(mem, prog, counter);
@@ -220,6 +255,41 @@ void math(byte *mem, byte *prog, byte *counter) {
     setFloat(mem, _result, value);
 }
 
+void compare(byte *mem, byte *prog, byte *counter) {
+    byte _a = data_fetch(mem, prog, counter);
+    byte _b = data_fetch(mem, prog, counter);
+    byte _fn = data_fetch(mem, prog, counter);
+    byte _result = data_fetch(mem, prog, counter);
+    float a = getFloat(mem, _a);
+    float b = getFloat(mem, _b);
+    int fn = (int)(getFloat(mem, _fn));
+
+    float value = 0;
+
+    switch (fn) {
+        case 0:
+            value = a <= b;
+            break;
+        case 1:
+            value = a < b;
+            break;
+        case 2:
+            value = a == b;
+            break;
+        case 3:
+            value = a > b;
+            break;
+        case 4:
+            value = a >= b;
+            break;
+        case 5:
+            value = a != b;
+            break;
+    }
+
+    setFloat(mem, _result, value);
+}
+
 void trig(byte *mem, byte *prog, byte *counter) {
     byte _x = data_fetch(mem, prog, counter);
     byte _fn = data_fetch(mem, prog, counter);
@@ -297,6 +367,21 @@ void execute(byte *mem, byte *prog, byte *counter) {
                 break;
             case 7:
                 trig(mem, prog, counter);
+                break;
+            case 8:
+                condition(mem, prog, counter);
+                break;
+            case 9:
+                compare(mem, prog, counter);
+                break;
+            case 10:
+                label(mem, prog, counter);
+                break;
+            case 11:
+                jump(mem, prog, counter);
+                break;
+            case 12:
+                store_jump(mem, prog, counter);
                 break;
         }
         op = instruction_fetch(mem, prog, counter);
