@@ -232,12 +232,14 @@ void frame(led_strip_t *strip0, led_strip_t *strip1, led_strip_t *strip2, byte *
         execute(mem, prog, &counter);
 
         // get result pointer
-        byte _result = prog[counter];
+        byte _master = data_fetch(mem, prog, &counter);
+        byte _result = data_fetch(mem, prog, &counter);
 
         // retrieve rgb values
-        float r = getFloat(mem, _result);
-        float g = getFloat(mem, _result + 1);
-        float b = getFloat(mem, _result + 2);
+        float m = getFloat(mem, _master);
+        float r = m * getFloat(mem, _result);
+        float g = m * getFloat(mem, _result + 1);
+        float b = m * getFloat(mem, _result + 2);
 
         // ESP_LOGI(TAG, "counter %i, rgb %f %f %f", counter, r, g, b);
         if (j < NUM_LEDS0) {
