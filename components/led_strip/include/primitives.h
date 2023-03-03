@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "colortemp.h"
 #include "esp_log.h"
 #include "functions.h"
 
@@ -220,6 +221,22 @@ void hsv2rgb(byte *mem, byte *prog, byte *counter) {
     setFloat(mem, _result + 2, b);
 }
 
+void temp2rgb(byte *mem, byte *prog, byte *counter) {
+    byte _t = data_fetch(mem, prog, counter);
+    byte _result = data_fetch(mem, prog, counter);
+
+    float t = getFloat(mem, _t);
+    byte index = 3 * (byte)((t - 1000) / 100);  // table starts at 1000 K, increments by 100 K
+
+    byte r = colortemp[index];
+    byte g = colortemp[index + 1];
+    byte b = colortemp[index + 2];
+
+    setFloat(mem, _result, r / 255.0);
+    setFloat(mem, _result + 1, g / 255.0);
+    setFloat(mem, _result + 2, b / 255.0);
+}
+
 void math(byte *mem, byte *prog, byte *counter) {
     byte _a = data_fetch(mem, prog, counter);
     byte _b = data_fetch(mem, prog, counter);
@@ -382,6 +399,9 @@ void execute(byte *mem, byte *prog, byte *counter) {
                 break;
             case 12:
                 store_jump(mem, prog, counter);
+                break;
+            case 13:
+                temp2rgb(mem, prog, counter);
                 break;
         }
         op = instruction_fetch(mem, prog, counter);
