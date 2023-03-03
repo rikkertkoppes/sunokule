@@ -226,11 +226,14 @@ void temp2rgb(byte *mem, byte *prog, byte *counter) {
     byte _result = data_fetch(mem, prog, counter);
 
     float t = getFloat(mem, _t);
-    byte index = 3 * (byte)((t - 1000) / 100);  // table starts at 1000 K, increments by 100 K
+    int index = 3 * (int)((t - 1000) / 100);  // table starts at 1000 K, increments by 100 K
 
     byte r = colortemp[index];
     byte g = colortemp[index + 1];
     byte b = colortemp[index + 2];
+
+    // const char *TAG = "colortemp";
+    // ESP_LOGI(TAG, "temp %f index %i rgb %i %i %i", t, index, r, g, b);
 
     setFloat(mem, _result, r / 255.0);
     setFloat(mem, _result + 1, g / 255.0);
