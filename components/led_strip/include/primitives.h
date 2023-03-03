@@ -272,6 +272,26 @@ void math(byte *mem, byte *prog, byte *counter) {
     setFloat(mem, _result, value);
 }
 
+void mapRange(byte *mem, byte *prog, byte *counter) {
+    byte _v = data_fetch(mem, prog, counter);
+    byte _fmin = data_fetch(mem, prog, counter);
+    byte _fmax = data_fetch(mem, prog, counter);
+    byte _tmin = data_fetch(mem, prog, counter);
+    byte _tmax = data_fetch(mem, prog, counter);
+    byte _result = data_fetch(mem, prog, counter);
+
+    float v = getFloat(mem, _v);
+    float fmin = getFloat(mem, _fmin);
+    float fmax = getFloat(mem, _fmax);
+    float tmin = getFloat(mem, _tmin);
+    float tmax = getFloat(mem, _tmax);
+
+    float result =
+        tmin + ((tmax - tmin) * (v - fmin)) / (fmax - fmin);
+
+    setFloat(mem, _result, result);
+}
+
 void compare(byte *mem, byte *prog, byte *counter) {
     byte _a = data_fetch(mem, prog, counter);
     byte _b = data_fetch(mem, prog, counter);
@@ -402,6 +422,9 @@ void execute(byte *mem, byte *prog, byte *counter) {
                 break;
             case 13:
                 temp2rgb(mem, prog, counter);
+                break;
+            case 14:
+                mapRange(mem, prog, counter);
                 break;
         }
         op = instruction_fetch(mem, prog, counter);
