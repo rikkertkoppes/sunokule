@@ -44,6 +44,12 @@
 #define NUM_LEDS1 CONFIG_SK_NUM_LEDS_1
 #define NUM_LEDS2 CONFIG_SK_NUM_LEDS_2
 
+// update mapping => colors off, strip 0, ok, others wrong
+// swap data pins => no change
+// swap refresh order (1,0,2) => no change
+// wait after every write => all ok
+// adjust timing => all ok
+
 #define SHADER_MEM_SIZE 256
 #define PROG_MEM_SIZE 256
 
@@ -79,6 +85,13 @@ led_strip_t *stripCreateInit(gpio_num_t gpio_num, rmt_channel_t channel, uint32_
  * expecting rgb as a float in [0,1]
  */
 void led_strip_setPixelRGB(led_strip_t *strip, u_int32_t index, float r, float g, float b) {
+    // remap r,g,b values to suppress low values
+    // r = r * r * r;
+    // g = g * g * g;
+    // b = b * b * b;
+
+    // ESP_LOGI(TAG, "rgb %f %f %f", r * 255, g * 255, b * 255);
+
     strip->set_pixel(strip, index, 255 * r, 255 * g, 255 * b);
 }
 
@@ -121,6 +134,15 @@ void frame(led_strip_t *strip0, led_strip_t *strip1, led_strip_t *strip2, byte *
         }
     }
     framecount++;
+    /**
+     * TODO: we can do even better than this
+     * - allocate 2 buffers for the entire strip
+     * - directly use rmt_write_sample and pass the correct memory segment
+     * - calculate next frame while hardware is writing to rmt
+     * - rather than calculate => refresh => wait, do:
+     * -             refresh => calculate next => wait
+     *
+     */
     /**
      * note: letting the rmt hardware write multiple strips in parallel,
      * then waiting for them to finish
@@ -265,5 +287,5 @@ void app_main(void) {
 
     xTaskCreate(fps_task, "fps", 4096, NULL, 8, NULL);
     xTaskCreate(params_task, "params", 4096, NULL, 8, NULL);
-    xTaskCreatePinnedToCore(led_strip_task, "led_strip", 4096, NULL, 8, NULL, 1);
+    xTaskCreatePinnedToCore(led_strip_task, "led_strip", 2 * 4096, NULL, 8, NULL, 1);
 }
