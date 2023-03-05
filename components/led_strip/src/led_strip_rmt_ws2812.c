@@ -30,11 +30,11 @@ static const char *TAG = "ws2812";
         }                                                                         \
     } while (0)
 
-#define WS2812_T0H_NS (250)    // 350 +/- 150  was 350
-#define WS2812_T0L_NS (800)    // 900 +/- 150  was 1000
-#define WS2812_T1H_NS (800)    // 900 +/- 150  was 1000
-#define WS2812_T1L_NS (250)    // 350 +/- 150  was 350
-#define WS2812_RESET_US (100)  // 50+          was 280
+#define WS2812_T0H_NS (350)    // 350 +/- 150  was 350
+#define WS2812_T0L_NS (1000)   // 900 +/- 150  was 1000
+#define WS2812_T1H_NS (1000)   // 900 +/- 150  was 1000
+#define WS2812_T1L_NS (350)    // 350 +/- 150  was 350
+#define WS2812_RESET_US (280)  // 50+          was 280
 
 static uint32_t ws2812_t0h_ticks = 0;
 static uint32_t ws2812_t1h_ticks = 0;
