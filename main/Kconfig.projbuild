@@ -1,9 +1,49 @@
-menu "DMX Led Config"
+menu "Suno Kule config"
 
-config BTN_LONGPRESS
-    int "Long press duration in ms"
-    default 3000
+config SK_DATA_PIN_0
+    int "data pin segment 0"
+    default 25
     help
-        Duration for button press to register as long press
+        Data pin for segment 0
 
+config SK_DATA_PIN_1
+    int "data pin segment 1"
+    default 26
+    help
+        Data pin for segment 1
+
+config SK_DATA_PIN_2
+    int "data pin segment 2"
+    default 27
+    help
+        Data pin for segment 2        
+    
+
+config SK_NUM_LEDS_0
+    int "num leds 0"
+    default 10
+    help
+        Number of leds for segment 0
+        
+config SK_NUM_LEDS_1
+    int "num leds 1"
+    default 0
+    help
+        Number of leds for segment 1
+
+config SK_NUM_LEDS_2
+    int "num leds 2"
+    default 0
+    help
+        Number of leds for segment 2   
+        
+config SK_WIFI_SSID
+    string "ssid"
+    help
+        SSID of the WIFI network to connect to
+
+config SK_WIFI_PASS
+    string "password"
+    help
+        password of the WIFI network to connect to        
 endmenu

@@ -12,8 +12,8 @@ static const char *TAG = "wifi_conn";
    If you'd rather not, just change the below entries to strings with
    the config you want - ie #define EXAMPLE_WIFI_SSID "mywifissid"
 */
-#define EXAMPLE_ESP_WIFI_SSID CONFIG_EXAMPLE_WIFI_SSID
-#define EXAMPLE_ESP_WIFI_PASS CONFIG_EXAMPLE_WIFI_PASSWORD
+#define EXAMPLE_ESP_WIFI_SSID CONFIG_SK_WIFI_SSID
+#define EXAMPLE_ESP_WIFI_PASS CONFIG_SK_WIFI_PASS
 #define EXAMPLE_ESP_MAXIMUM_RETRY 2
 
 /* FreeRTOS event group to signal when we are connected*/

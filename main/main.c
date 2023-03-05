@@ -37,12 +37,12 @@
 #define RMT_TX_CHANNEL0 RMT_CHANNEL_0
 #define RMT_TX_CHANNEL1 RMT_CHANNEL_1
 #define RMT_TX_CHANNEL2 RMT_CHANNEL_2
-#define DATA_PIN0 25
-#define DATA_PIN1 26
-#define DATA_PIN2 27
-#define NUM_LEDS0 200
-#define NUM_LEDS1 200
-#define NUM_LEDS2 196
+#define DATA_PIN0 CONFIG_SK_DATA_PIN_0
+#define DATA_PIN1 CONFIG_SK_DATA_PIN_1
+#define DATA_PIN2 CONFIG_SK_DATA_PIN_2
+#define NUM_LEDS0 CONFIG_SK_NUM_LEDS_0
+#define NUM_LEDS1 CONFIG_SK_NUM_LEDS_1
+#define NUM_LEDS2 CONFIG_SK_NUM_LEDS_2
 
 #define SHADER_MEM_SIZE 256
 #define PROG_MEM_SIZE 256
@@ -132,10 +132,26 @@ void frame(led_strip_t *strip0, led_strip_t *strip1, led_strip_t *strip2, byte *
      * parallel 2x300 leds -> 45fps for scan shader
      *
      */
-    strip->refresh_immediate(strip);
-    strip->refresh_immediate(strip1);
-    strip->wait(strip, 50);
-    strip->wait(strip1, 50);
+
+    if (NUM_LEDS0 > 0) {
+        strip0->refresh_immediate(strip0);
+    }
+    if (NUM_LEDS1 > 0) {
+        strip1->refresh_immediate(strip1);
+    }
+    if (NUM_LEDS2 > 0) {
+        strip2->refresh_immediate(strip2);
+    }
+
+    if (NUM_LEDS0 > 0) {
+        strip0->wait(strip0, 50);
+    }
+    if (NUM_LEDS1 > 0) {
+        strip1->wait(strip1, 50);
+    }
+    if (NUM_LEDS2 > 0) {
+        strip2->wait(strip2, 50);
+    }
 }
 
 static void fps_task(void *pvParameters) {
