@@ -1,4 +1,5 @@
-#include <esp_http_server.h>
+
+#include <esp_https_server.h>
 
 #include "esp_log.h"
 #include "freertos/event_groups.h"
@@ -143,12 +144,22 @@ static esp_err_t ws_handler(httpd_req_t *req) {
 }
 
 void start_webserver(void) {
-    httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.uri_match_fn = httpd_uri_match_wildcard;
-    config.core_id = 0;
-    config.task_priority = 4;
+    httpd_ssl_config_t config = HTTPD_SSL_CONFIG_DEFAULT();
+    config.httpd.uri_match_fn = httpd_uri_match_wildcard;
+    config.httpd.core_id = 0;
+    config.httpd.task_priority = 4;
 
-    ESP_ERROR_CHECK(httpd_start(&server, &config));
+    extern const unsigned char cacert_pem_start[] asm("_binary_cacert_pem_start");
+    extern const unsigned char cacert_pem_end[] asm("_binary_cacert_pem_end");
+    config.cacert_pem = cacert_pem_start;
+    config.cacert_len = cacert_pem_end - cacert_pem_start;
+
+    extern const unsigned char prvtkey_pem_start[] asm("_binary_prvtkey_pem_start");
+    extern const unsigned char prvtkey_pem_end[] asm("_binary_prvtkey_pem_end");
+    config.prvtkey_pem = prvtkey_pem_start;
+    config.prvtkey_len = prvtkey_pem_end - prvtkey_pem_start;
+
+    ESP_ERROR_CHECK(httpd_ssl_start(&server, &config));
 
     httpd_uri_t index_uri = {
         .uri = "/",
