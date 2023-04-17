@@ -10,10 +10,18 @@
 
 static const char *TAG = "webserver";
 
-httpd_handle_t server = NULL;
+httpd_handle_t http_server = NULL;
+httpd_handle_t https_server = NULL;
 EventGroupHandle_t webserverState;
 static QueueHandle_t eventQueue = NULL;
 
+// self signed certs
+extern const uint8_t cacert_pem_start[] asm("_binary_cacert_pem_start");
+extern const uint8_t cacert_pem_end[] asm("_binary_cacert_pem_end");
+extern const uint8_t prvtkey_pem_start[] asm("_binary_prvtkey_pem_start");
+extern const uint8_t prvtkey_pem_end[] asm("_binary_prvtkey_pem_end");
+
+// index handler
 static esp_err_t index_handler(httpd_req_t *req) {
     httpd_resp_set_type(req, "text/html");
     httpd_resp_send(req, "<html><body><h1>Hello World!</h1><script>let sock=new WebSocket(`ws://${location.hostname}/ws`);</script></body></html>", -1);
@@ -35,20 +43,20 @@ esp_err_t ws_broadcast(char *str) {
     size_t fds = max_clients;
     int client_fds[max_clients];
 
-    esp_err_t ret = httpd_get_client_list(server, &fds, client_fds);
+    esp_err_t ret = httpd_get_client_list(https_server, &fds, client_fds);
 
     if (ret != ESP_OK) {
         return ret;
     }
 
     for (int i = 0; i < fds; i++) {
-        int client_info = httpd_ws_get_fd_info(server, client_fds[i]);
+        int client_info = httpd_ws_get_fd_info(https_server, client_fds[i]);
         if (client_info == HTTPD_WS_CLIENT_WEBSOCKET) {
             httpd_ws_frame_t packet;
             packet.type = HTTPD_WS_TYPE_TEXT;
             packet.payload = (uint8_t *)str;
             packet.len = strlen(str);
-            httpd_ws_send_frame_async(server, client_fds[i], &packet);
+            httpd_ws_send_frame_async(https_server, client_fds[i], &packet);
         }
     }
 
@@ -143,30 +151,66 @@ static esp_err_t ws_handler(httpd_req_t *req) {
     return ret;
 }
 
-void start_webserver(void) {
-    httpd_ssl_config_t config = HTTPD_SSL_CONFIG_DEFAULT();
-    config.httpd.uri_match_fn = httpd_uri_match_wildcard;
-    config.httpd.core_id = 0;
-    config.httpd.task_priority = 4;
-
-    extern const unsigned char cacert_pem_start[] asm("_binary_cacert_pem_start");
-    extern const unsigned char cacert_pem_end[] asm("_binary_cacert_pem_end");
-    config.cacert_pem = cacert_pem_start;
-    config.cacert_len = cacert_pem_end - cacert_pem_start;
-
-    extern const unsigned char prvtkey_pem_start[] asm("_binary_prvtkey_pem_start");
-    extern const unsigned char prvtkey_pem_end[] asm("_binary_prvtkey_pem_end");
-    config.prvtkey_pem = prvtkey_pem_start;
-    config.prvtkey_len = prvtkey_pem_end - prvtkey_pem_start;
-
-    ESP_ERROR_CHECK(httpd_ssl_start(&server, &config));
-
-    httpd_uri_t index_uri = {
-        .uri = "/",
+static void register_uri_handlers(const char *uri_path, esp_err_t (*handler)(httpd_req_t *)) {
+    // Register handler
+    httpd_uri_t uri_handler = {
+        .uri = uri_path,
         .method = HTTP_GET,
-        .handler = index_handler,
-        .user_ctx = NULL,
-    };
+        .handler = handler,
+        .user_ctx = NULL};
+
+    // Register URI handler for the HTTP server
+    esp_err_t ret = httpd_register_uri_handler(http_server, &uri_handler);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to register URI handler for HTTP server: %s", esp_err_to_name(ret));
+    }
+
+    // Register the same URI handler for the HTTPS server
+    ret = httpd_register_uri_handler(https_server, &uri_handler);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to register URI handler for HTTPS server: %s", esp_err_to_name(ret));
+    }
+}
+
+void start_webserver(void) {
+    esp_err_t ret;
+
+    // http config
+    httpd_config_t http_config = HTTPD_DEFAULT_CONFIG();
+    http_config.uri_match_fn = httpd_uri_match_wildcard;
+    http_config.core_id = 0;
+    http_config.task_priority = 4;
+    http_config.ctrl_port = 32768;
+
+    // Start HTTP server
+    ret = httpd_start(&http_server, &http_config);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to start HTTP server: %s", esp_err_to_name(ret));
+        return;
+    }
+    ESP_LOGI(TAG, "Http webserver running");
+
+    // https config
+    httpd_ssl_config_t https_config = HTTPD_SSL_CONFIG_DEFAULT();
+    https_config.httpd.uri_match_fn = httpd_uri_match_wildcard;
+
+    // add certificates
+    https_config.cacert_pem = cacert_pem_start;
+    https_config.cacert_len = cacert_pem_end - cacert_pem_start;
+    https_config.prvtkey_pem = prvtkey_pem_start;
+    https_config.prvtkey_len = prvtkey_pem_end - prvtkey_pem_start;
+
+    https_config.httpd.core_id = 0;
+    https_config.httpd.task_priority = 4;
+    https_config.httpd.ctrl_port = 32769;
+
+    // Start HTTPS server
+    ret = httpd_ssl_start(&https_server, &https_config);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to start HTTPS server: %s", esp_err_to_name(ret));
+        return;
+    }
+    ESP_LOGI(TAG, "Https webserver running");
 
     httpd_uri_t ws_uri = {
         .uri = "/ws",
@@ -177,8 +221,9 @@ void start_webserver(void) {
         .handle_ws_control_frames = true,
     };
 
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server, &index_uri));
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server, &ws_uri));
+    register_uri_handlers("/", index_handler);
+
+    ESP_ERROR_CHECK(httpd_register_uri_handler(https_server, &ws_uri));
 }
 
 // void webserverTask(void *arg) {
@@ -211,6 +256,7 @@ void start_webserver(void) {
 
 void startWebserverTask(int stackSize, int prio, EventGroupHandle_t state, QueueHandle_t queue) {
     eventQueue = queue;
+    ESP_LOGI(TAG, "Available heap: %u", esp_get_free_heap_size());
     start_webserver();
     ESP_LOGI(TAG, "Webserver running");
     // xTaskCreate(webserverTask, "webserver_task", stackSize, (void *)state, prio, NULL);
