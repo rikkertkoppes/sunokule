@@ -1,10 +1,10 @@
-set(component_srcs "webserver.c")
+set(component_srcs "src/webserver.c")
 
 idf_component_register(SRCS "${component_srcs}"
     INCLUDE_DIRS "include"
     PRIV_INCLUDE_DIRS ""
     PRIV_REQUIRES "driver"
-    REQUIRES "esp_https_server"
+    REQUIRES "esp_https_server storage wifi_conn"
     EMBED_TXTFILES
     "certs/cacert.pem"
     "certs/prvtkey.pem")

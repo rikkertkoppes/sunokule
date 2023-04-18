@@ -22,6 +22,7 @@
 #include "freertos/task.h"
 #include "functions.h"
 #include "led_strip.h"
+#include "ledstorage.h"
 #include "lwip/err.h"
 #include "lwip/sockets.h"
 #include "lwip/sys.h"
@@ -278,9 +279,9 @@ void app_main(void) {
     main_events = xQueueCreate(4, PROG_MEM_SIZE);
     ESP_LOGI(TAG, "app main, start ledstrip task");
 
-    ESP_ERROR_CHECK(nvs_flash_init());
+    init_flash();
 
-    wifi_init_sta();
+    wifi_init();
     startWebserverTask(4096, 5, NULL, main_events);
 
     // xTaskCreate(udp_client_task, "udp_client", 4096, NULL, 5, NULL);

@@ -1,7 +1,7 @@
-set(component_srcs "src/udp_client.c")
+set(component_srcs "src/storage.c")
 
 idf_component_register(SRCS "${component_srcs}"
     INCLUDE_DIRS "include"
     PRIV_INCLUDE_DIRS ""
     PRIV_REQUIRES "driver"
-    REQUIRES "esp_http_server")
+    REQUIRES "nvs_flash")

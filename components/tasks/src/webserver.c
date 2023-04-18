@@ -3,7 +3,9 @@
 
 #include "esp_log.h"
 #include "freertos/event_groups.h"
+#include "storage.h"
 #include "tcpip_adapter.h"
+#include "wifi_conn.h"
 
 #define MAX_PAYLOAD_LEN 256
 #define STATE_GOT_PARAMS 1
@@ -20,6 +22,97 @@ extern const uint8_t cacert_pem_start[] asm("_binary_cacert_pem_start");
 extern const uint8_t cacert_pem_end[] asm("_binary_cacert_pem_end");
 extern const uint8_t prvtkey_pem_start[] asm("_binary_prvtkey_pem_start");
 extern const uint8_t prvtkey_pem_end[] asm("_binary_prvtkey_pem_end");
+
+const char *wifi_setup_html =
+    "<!DOCTYPE html>"
+    "<html>"
+    "<head>"
+    "  <title>Wi-Fi Setup</title>"
+    "</head>"
+    "<body>"
+    "  <h1>Suno Kule Setup</h1>"
+    "  <form action=\"/setup\" method=\"POST\">"
+    "    <label for=\"ssid\">SSID:</label>"
+    "    <input type=\"text\" id=\"ssid\" name=\"ssid\" value=\"%s\" required><br><br>"
+    "    <label for=\"password\">Password:</label>"
+    "    <input type=\"password\" id=\"password\" name=\"password\" value=\"%s\" required><br><br>"
+    "    <label for=\"static_ip\">Static IP:</label>"
+    "    <input type=\"text\" id=\"static_ip\" name=\"static_ip\" value=\"%s\"><br><br>"
+    "    <label for=\"gateway\">Gateway:</label>"
+    "    <input type=\"text\" id=\"gateway\" name=\"gateway\" value=\"%s\"><br><br>"
+    "    <input type=\"submit\" value=\"Submit\">"
+    "  </form>"
+    "</body>"
+    "</html>";
+
+esp_err_t wifi_setup_handler(httpd_req_t *req) {
+    char stored_ssid[33] = {0};
+    char stored_pass[65] = {0};
+    char stored_static_ip[16] = {0};
+    char stored_gateway[16] = {0};
+    esp_err_t cred_err = read_wifi_credentials(stored_ssid, stored_pass);
+    esp_err_t static_err = read_static_ip(stored_static_ip, stored_gateway);
+
+    // Buffer to hold the dynamically generated HTML content
+    char html_buf[1024];
+
+    snprintf(html_buf, sizeof(html_buf), wifi_setup_html, stored_ssid, stored_pass, stored_static_ip, stored_gateway);
+
+    httpd_resp_set_type(req, "text/html");
+    httpd_resp_send(req, html_buf, strlen(html_buf));
+    // httpd_resp_send(req, wifi_setup_html, strlen(wifi_setup_html));
+    return ESP_OK;
+}
+
+esp_err_t wifi_setup_submit_handler(httpd_req_t *req) {
+    if (req->method == HTTP_POST) {
+        // Buffer to store incoming POST data
+        char buf[100];
+        int received = httpd_req_recv(req, buf, sizeof(buf));
+        if (received <= 0) {  // 0 return value indicates connection closed
+            // Check if timeout occurred
+            if (received == HTTPD_SOCK_ERR_TIMEOUT) {
+                httpd_resp_send_408(req);
+            }
+            return ESP_FAIL;
+        }
+        buf[received] = '\0';
+
+        // Parse SSID and password from the POST data
+        char ssid[33] = {0};
+        char password[65] = {0};
+        char static_ip[16] = {0};
+        char gateway[16] = {0};
+        sscanf(buf, "ssid=%[^&]&password=%[^&]&static_ip=%[^&]&gateway=%15s", ssid, password, static_ip, gateway);
+
+        ESP_LOGI(TAG, "ssid %s", ssid);
+        ESP_LOGI(TAG, "pass %s", password);
+        ESP_LOGI(TAG, "static_ip %s", static_ip);
+        ESP_LOGI(TAG, "gateway %s", gateway);
+
+        // Store SSID and password in NVS if they are not empty
+        if (strlen(ssid) > 0 && strlen(password) > 0) {
+            store_wifi_credentials(ssid, password);
+        }
+
+        // Store static IP in NVS
+        store_static_ip(static_ip, gateway);
+
+        httpd_resp_set_status(req, "303 See Other");
+        httpd_resp_set_hdr(req, "Location", "/");
+        httpd_resp_send(req, NULL, 0);
+        // Send a success response
+        // httpd_resp_sendstr(req, "SSID and password have been saved.");
+
+        // restart wifi:
+        wifi_restart();
+    } else {
+        // Send a 405 Method Not Allowed response if the request method is not POST
+        httpd_resp_send_err(req, HTTPD_405_METHOD_NOT_ALLOWED, "Method not allowed");
+        return ESP_FAIL;
+    }
+    return ESP_OK;
+}
 
 // index handler
 static esp_err_t index_handler(httpd_req_t *req) {
@@ -151,11 +244,11 @@ static esp_err_t ws_handler(httpd_req_t *req) {
     return ret;
 }
 
-static void register_uri_handlers(const char *uri_path, esp_err_t (*handler)(httpd_req_t *)) {
+static void register_uri_handlers(httpd_method_t method, const char *uri_path, esp_err_t (*handler)(httpd_req_t *)) {
     // Register handler
     httpd_uri_t uri_handler = {
         .uri = uri_path,
-        .method = HTTP_GET,
+        .method = method,
         .handler = handler,
         .user_ctx = NULL};
 
@@ -170,6 +263,13 @@ static void register_uri_handlers(const char *uri_path, esp_err_t (*handler)(htt
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to register URI handler for HTTPS server: %s", esp_err_to_name(ret));
     }
+}
+
+static void http_get(const char *uri_path, esp_err_t (*handler)(httpd_req_t *)) {
+    return register_uri_handlers(HTTP_GET, uri_path, handler);
+}
+static void http_post(const char *uri_path, esp_err_t (*handler)(httpd_req_t *)) {
+    return register_uri_handlers(HTTP_POST, uri_path, handler);
 }
 
 void start_webserver(void) {
@@ -221,7 +321,9 @@ void start_webserver(void) {
         .handle_ws_control_frames = true,
     };
 
-    register_uri_handlers("/", index_handler);
+    // register_uri_handlers("/", index_handler);
+    http_get("/", wifi_setup_handler);
+    http_post("/setup", wifi_setup_submit_handler);
 
     ESP_ERROR_CHECK(httpd_register_uri_handler(https_server, &ws_uri));
 }
