@@ -84,7 +84,8 @@ void label(byte *mem, byte *prog, byte *counter) {
 
 void color(byte *mem, byte *prog, byte *counter) {
     byte _col = data_fetch(mem, prog, counter);
-    byte _control = data_fetch(mem, prog, counter);
+    // byte _control =
+    data_fetch(mem, prog, counter);
     byte _result = data_fetch(mem, prog, counter);
     float r = getFloat(mem, _col);
     float g = getFloat(mem, _col + 1);
@@ -96,7 +97,8 @@ void color(byte *mem, byte *prog, byte *counter) {
 
 void value(byte *mem, byte *prog, byte *counter) {
     byte _val = data_fetch(mem, prog, counter);
-    byte _control = data_fetch(mem, prog, counter);
+    // byte _control =
+    data_fetch(mem, prog, counter);
     byte _result = data_fetch(mem, prog, counter);
     float val = getFloat(mem, _val);
     setFloat(mem, _result, val);
@@ -124,7 +126,8 @@ void waveform(byte *mem, byte *prog, byte *counter) {
     byte _duty = data_fetch(mem, prog, counter);
     byte _leading = data_fetch(mem, prog, counter);
     byte _trailing = data_fetch(mem, prog, counter);
-    byte _smooth = data_fetch(mem, prog, counter);
+    // byte _smooth =
+    data_fetch(mem, prog, counter);
     byte _x = data_fetch(mem, prog, counter);
     byte _t = data_fetch(mem, prog, counter);
     byte _result = data_fetch(mem, prog, counter);
@@ -135,7 +138,7 @@ void waveform(byte *mem, byte *prog, byte *counter) {
     float duty = getFloat(mem, _duty);
     float leading = getFloat(mem, _leading);
     float trailing = getFloat(mem, _trailing);
-    float smooth = getFloat(mem, _smooth);
+    // float smooth = getFloat(mem, _smooth);
     float x = getFloat(mem, _x);
     float t = getFloat(mem, _t);
     t *= speed;
