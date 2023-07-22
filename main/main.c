@@ -192,11 +192,15 @@ static void fps_task(void *pvParameters) {
 
 static void setParams(uint8_t *data) {
     uint8_t num_params = data[0];
+    // data comes in quintets
     for (uint8_t i = 0; i < num_params; i++) {
+        // first byte is memory address
         uint8_t ptr = data[1 + i * 5];
         float f;
+        // next 4 bytes are float data, copy to local float variable
         memcpy(&f, data + 2 + i * 5, 4);
         ESP_LOGI(TAG, "set mem %i to %f", ptr, f);
+        // set memory address to float value
         setFloat(mem, ptr, f);
     }
 }
@@ -213,6 +217,7 @@ static void params_task(void *pvParameters) {
             printf("\n");
             uint8_t datatype = data[0];
             switch (datatype) {
+                // shader packet
                 case 0:
                     // store shader in NVS
                     saveShader(data + 2, data[1]);
@@ -222,9 +227,11 @@ static void params_task(void *pvParameters) {
                     // reinitialize working memory
                     setMem(mem, shader);
                     break;
+                // params packet
                 case 1:
                     setParams(data + 1);
                     break;
+                // power on/ off packet
                 case 2:
                     // reset shader time
                     clk = 0;

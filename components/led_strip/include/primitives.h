@@ -84,7 +84,7 @@ void label(byte *mem, byte *prog, byte *counter) {
 
 void color(byte *mem, byte *prog, byte *counter) {
     byte _col = data_fetch(mem, prog, counter);
-    // byte _control =
+    // byte _channel =
     data_fetch(mem, prog, counter);
     byte _result = data_fetch(mem, prog, counter);
     float r = getFloat(mem, _col);
@@ -97,7 +97,7 @@ void color(byte *mem, byte *prog, byte *counter) {
 
 void value(byte *mem, byte *prog, byte *counter) {
     byte _val = data_fetch(mem, prog, counter);
-    // byte _control =
+    // byte _channel =
     data_fetch(mem, prog, counter);
     byte _result = data_fetch(mem, prog, counter);
     float val = getFloat(mem, _val);
