@@ -106,8 +106,11 @@ void frame(led_strip_t *strip0, led_strip_t *strip1, led_strip_t *strip2, byte *
     for (int j = 0; j < NUM_LEDS0 + NUM_LEDS1 + NUM_LEDS2; j += 1) {
         size_t mem_end = shader[0];
         // set params
+        // copy time into memory
         setFloat(mem, mem_end, clk);
-        // copy mapping directly from in memory
+        // copy current led index into memory
+        setFloat(mem, mem_end + 1, (float)j);
+        // copy current led mapping directly from in memory
         setMapping(mem, mem_end + 2, mapping, j);
 
         // execute
