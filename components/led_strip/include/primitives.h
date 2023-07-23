@@ -16,13 +16,21 @@ float getFloat(byte *mem, byte ptr) {
     return f;
 }
 
+uint16_t getUint16(byte *mem, byte ptr) {
+    uint16_t i;
+    memcpy(&i, mem + ptr, 2);
+    return i;
+}
+
 void setFloat(byte *mem, byte ptr, float f) {
     memcpy(mem + ptr * 4, (byte *)(&f), 4);
 }
 
-void setMem(byte *mem, byte *data) {
-    byte size = data[0] * 4;
-    memcpy(mem, data + 1, size);
+void setMem(byte *mem, byte *shader) {
+    // get mem start and size from shader
+    uint16_t memstart = getUint16(shader, 2);
+    uint16_t memsize = getUint16(shader, 4);
+    memcpy(mem, shader + memstart, memsize);
 }
 
 void setShader(byte *prog, byte *data, byte size) {

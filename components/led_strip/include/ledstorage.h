@@ -5,7 +5,14 @@
 typedef unsigned char byte;
 
 byte _scan2[] = {
-    19,
+    1,  // version
+    1,  // id
+
+    12, 0,  // mem offset
+    76, 0,  // mem size: 19*4 = 76
+    88, 0,  // prog offset
+    52, 0,  // prog size
+    0, 0,   // control offset
 
     205, 204, 204, 61,  // 0: 0.1
     0, 0, 128, 63,      // 1: 1

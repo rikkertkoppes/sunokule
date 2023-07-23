@@ -104,9 +104,18 @@ int framecount = 0;
 // frame renderer, by using a shader and incoming data
 void frame(led_strip_t *strip0, led_strip_t *strip1, led_strip_t *strip2, byte *shader, float clk) {
     for (int j = 0; j < NUM_LEDS0 + NUM_LEDS1 + NUM_LEDS2; j += 1) {
-        size_t mem_end = shader[0];
+        byte version = shader[0];
+        byte id = shader[1];
+
+        uint16_t memStart = getUint16(shader, 2);
+        uint16_t memSize = getUint16(shader, 4);
+        uint16_t progStart = getUint16(shader, 6);
+        uint16_t progSize = getUint16(shader, 8);
+
+        uint16_t mem_end = memSize / 4;
+
         // set params
-        // copy time into memory
+        // copy time into end of memory
         setFloat(mem, mem_end, clk);
         // copy current led index into memory
         setFloat(mem, mem_end + 1, (float)j);
@@ -115,7 +124,7 @@ void frame(led_strip_t *strip0, led_strip_t *strip1, led_strip_t *strip2, byte *
 
         // execute
         byte counter = 0;
-        byte *prog = shader + shader[0] * 4 + 1;
+        byte *prog = shader + progStart;
         execute(mem, prog, &counter);
 
         // get result pointer
