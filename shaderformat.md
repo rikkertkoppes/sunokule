@@ -8,8 +8,8 @@
 | 8            | 2    | <progsize>        |
 | ...          | ...  | additional data   |
 | <memoffset>  | 4    | value             |
-| +2           | 4    | value             |
-| +6           | 4    | value             |
+| +4           | 4    | value             |
+| +8           | 4    | value             |
 | ...          | ...  | ...               |
 | <progoffset> | 1    | instruction       |
 | +1           | n    | param pointers    |
