@@ -7,6 +7,8 @@
 #include "esp_log.h"
 #include "functions.h"
 
+#define DMX_OFFSET 512
+
 typedef unsigned char byte;
 
 // getters and setters into mem
@@ -22,6 +24,18 @@ uint16_t getUint16(byte *mem, byte ptr) {
     return i;
 }
 
+uint8_t getUint8(byte *mem, byte ptr) {
+    uint8_t i;
+    memcpy(&i, mem + ptr, 1);
+    return i;
+}
+
+uint8_t getDMX(byte *mem, byte ptr) {
+    uint8_t i;
+    memcpy(&i, mem + DMX_OFFSET + ptr, 1);
+    return i;
+}
+
 void setFloat(byte *mem, byte ptr, float f) {
     memcpy(mem + ptr * 4, (byte *)(&f), 4);
 }
@@ -31,6 +45,10 @@ void setMem(byte *mem, byte *shader) {
     uint16_t memstart = getUint16(shader, 2);
     uint16_t memsize = getUint16(shader, 4);
     memcpy(mem, shader + memstart, memsize);
+}
+
+void setDMX(byte *mem, byte *data) {
+    memcpy(mem + DMX_OFFSET, data, 512);
 }
 
 void setShader(byte *prog, byte *data, byte size) {
@@ -105,10 +123,21 @@ void color(byte *mem, byte *prog, byte *counter) {
 
 void value(byte *mem, byte *prog, byte *counter) {
     byte _val = data_fetch(mem, prog, counter);
-    // byte _channel =
-    data_fetch(mem, prog, counter);
     byte _result = data_fetch(mem, prog, counter);
-    float val = getFloat(mem, _val);
+    float val;
+    val = getFloat(mem, _val);
+    setFloat(mem, _result, val);
+}
+
+void dmxValue(byte *mem, byte *prog, byte *counter) {
+    byte _channel = data_fetch(mem, prog, counter);
+    byte _result = data_fetch(mem, prog, counter);
+    float channel = getFloat(mem, _channel);
+    // get value from dmx
+    uint8_t val8 = getDMX(mem, (int)channel);
+    // printf("%i %i \n", (int)channel, val8);
+    float val = val8 / 255.0;
+
     setFloat(mem, _result, val);
 }
 
@@ -439,6 +468,9 @@ void execute(byte *mem, byte *prog, byte *counter) {
                 break;
             case 14:
                 mapRange(mem, prog, counter);
+                break;
+            case 15:
+                dmxValue(mem, prog, counter);
                 break;
         }
         op = instruction_fetch(mem, prog, counter);

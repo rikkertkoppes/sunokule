@@ -32,6 +32,7 @@
 #include "primitives.h"
 #include "protocol_examples_common.h"
 #include "storage.h"
+#include "udp_client.h"
 #include "webserver.h"
 #include "wifi_conn.h"
 
@@ -51,7 +52,7 @@
 // wait after every write => all ok
 // adjust timing => all ok
 
-#define SHADER_MEM_SIZE 256
+#define SHADER_MEM_SIZE 1024
 #define PROG_MEM_SIZE 256
 
 static const char *TAG = "shader";
@@ -127,8 +128,10 @@ void frame(led_strip_t *strip0, led_strip_t *strip1, led_strip_t *strip2, byte *
         byte *prog = shader + progStart;
         execute(mem, prog, &counter);
 
-        // get result pointer
+        // program counter is currently at the end program instruction
+        // master value is the first param of the end program instruction
         byte _master = data_fetch(mem, prog, &counter);
+        // result value is the second param of the end program instruction
         byte _result = data_fetch(mem, prog, &counter);
 
         // retrieve rgb values
@@ -218,7 +221,7 @@ static void setParams(uint8_t *data) {
 }
 
 static void params_task(void *pvParameters) {
-    uint8_t data[PROG_MEM_SIZE];
+    uint8_t data[SHADER_MEM_SIZE];
     while (true) {
         if (xQueueReceive(main_events, data, 1000 / portTICK_PERIOD_MS)) {
             printf("part of the buffer:");
@@ -249,6 +252,13 @@ static void params_task(void *pvParameters) {
                     clk = 0;
                     power = data[1];
                     savePowerState(power);
+                    break;
+                // dmx packet
+                case 3:
+                    // put dmx data into memory
+                    setDMX(mem, data);
+                    printf("%i %i %i \n", getDMX(mem, 0), getDMX(mem, 1), getDMX(mem, 2));
+                    break;
             }
         }
     }
@@ -295,7 +305,7 @@ static void led_strip_task(void *pvParameters) {
 }
 
 void app_main(void) {
-    main_events = xQueueCreate(4, PROG_MEM_SIZE);
+    main_events = xQueueCreate(4, SHADER_MEM_SIZE);
     ESP_LOGI(TAG, "app main, start ledstrip task");
 
     init_flash();
@@ -303,8 +313,8 @@ void app_main(void) {
     wifi_init();
     startWebserverTask(4096, 5, NULL, main_events);
 
+    startUDPTask(4096, 5, NULL, main_events);
     // xTaskCreate(udp_client_task, "udp_client", 4096, NULL, 5, NULL);
-
     xTaskCreate(fps_task, "fps", 4096, NULL, 8, NULL);
     xTaskCreate(params_task, "params", 4096, NULL, 8, NULL);
     xTaskCreatePinnedToCore(led_strip_task, "led_strip", 2 * 4096, NULL, 8, NULL, 1);
