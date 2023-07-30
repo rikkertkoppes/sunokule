@@ -134,7 +134,8 @@ void dmxValue(byte *mem, byte *prog, byte *counter) {
     byte _result = data_fetch(mem, prog, counter);
     float channel = getFloat(mem, _channel);
     // get value from dmx
-    uint8_t val8 = getDMX(mem, (int)channel);
+    // dmx channels are 1 indexed
+    uint8_t val8 = getDMX(mem, (int)channel - 1);
     // printf("%i %i \n", (int)channel, val8);
     float val = val8 / 255.0;
 
