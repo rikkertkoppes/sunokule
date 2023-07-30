@@ -270,6 +270,10 @@ static void led_strip_task(void *pvParameters) {
     // uint16_t start_rgb = 0;
     uint32_t time = clock();
 
+    ESP_LOGI(TAG, "configure %i leds on pin %i", NUM_LEDS0, DATA_PIN0);
+    ESP_LOGI(TAG, "configure %i leds on pin %i", NUM_LEDS1, DATA_PIN1);
+    ESP_LOGI(TAG, "configure %i leds on pin %i", NUM_LEDS2, DATA_PIN2);
+
     // initialize strip segments
     led_strip_t *strip0 = stripCreateInit(DATA_PIN0, RMT_TX_CHANNEL0, NUM_LEDS0);
     led_strip_t *strip1 = stripCreateInit(DATA_PIN1, RMT_TX_CHANNEL1, NUM_LEDS1);
