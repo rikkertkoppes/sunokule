@@ -4,7 +4,8 @@
 #include "esp_log.h"
 #include "freertos/event_groups.h"
 #include "storage.h"
-#include "tcpip_adapter.h"
+// #include "tcpip_adapter.h"
+#include "esp_netif.h"
 #include "wifi_conn.h"
 
 #define MAX_PAYLOAD_LEN 256
@@ -40,6 +41,8 @@ const char *wifi_setup_html =
     "    <input type=\"text\" id=\"static_ip\" name=\"static_ip\" value=\"%s\"><br><br>"
     "    <label for=\"gateway\">Gateway:</label>"
     "    <input type=\"text\" id=\"gateway\" name=\"gateway\" value=\"%s\"><br><br>"
+    "    <label for=\"multicast\">Multicast address:</label>"
+    "    <input type=\"text\" id=\"multicast\" name=\"multicast\" value=\"%s\"><br><br>"
     "    <input type=\"submit\" value=\"Submit\">"
     "  </form>"
     "</body>"
@@ -50,13 +53,20 @@ esp_err_t wifi_setup_handler(httpd_req_t *req) {
     char stored_pass[65] = {0};
     char stored_static_ip[16] = {0};
     char stored_gateway[16] = {0};
-    esp_err_t cred_err = read_wifi_credentials(stored_ssid, stored_pass);
-    esp_err_t static_err = read_static_ip(stored_static_ip, stored_gateway);
+    char stored_multicast[16] = {0};
+    // TODO: handle errors
+    // esp_err_t cred_err = read_wifi_credentials(stored_ssid, stored_pass);
+    // esp_err_t static_err = read_static_ip(stored_static_ip, stored_gateway);
+    // esp_err_t multicast_err = read_multicast_ip(stored_multicast);
+
+    read_wifi_credentials(stored_ssid, stored_pass);
+    read_static_ip(stored_static_ip, stored_gateway);
+    read_multicast_ip(stored_multicast);
 
     // Buffer to hold the dynamically generated HTML content
     char html_buf[1024];
 
-    snprintf(html_buf, sizeof(html_buf), wifi_setup_html, stored_ssid, stored_pass, stored_static_ip, stored_gateway);
+    snprintf(html_buf, sizeof(html_buf), wifi_setup_html, stored_ssid, stored_pass, stored_static_ip, stored_gateway, stored_multicast);
 
     httpd_resp_set_type(req, "text/html");
     httpd_resp_send(req, html_buf, strlen(html_buf));
@@ -67,7 +77,7 @@ esp_err_t wifi_setup_handler(httpd_req_t *req) {
 esp_err_t wifi_setup_submit_handler(httpd_req_t *req) {
     if (req->method == HTTP_POST) {
         // Buffer to store incoming POST data
-        char buf[100];
+        char buf[255];
         int received = httpd_req_recv(req, buf, sizeof(buf));
         if (received <= 0) {  // 0 return value indicates connection closed
             // Check if timeout occurred
@@ -83,12 +93,14 @@ esp_err_t wifi_setup_submit_handler(httpd_req_t *req) {
         char password[65] = {0};
         char static_ip[16] = {0};
         char gateway[16] = {0};
-        sscanf(buf, "ssid=%[^&]&password=%[^&]&static_ip=%[^&]&gateway=%15s", ssid, password, static_ip, gateway);
+        char multicast[16] = {0};
+        sscanf(buf, "ssid=%[^&]&password=%[^&]&static_ip=%[^&]&gateway=%[^&]&multicast=%15s", ssid, password, static_ip, gateway, multicast);
 
         ESP_LOGI(TAG, "ssid %s", ssid);
         ESP_LOGI(TAG, "pass %s", password);
         ESP_LOGI(TAG, "static_ip %s", static_ip);
         ESP_LOGI(TAG, "gateway %s", gateway);
+        ESP_LOGI(TAG, "multicast %s", multicast);
 
         // Store SSID and password in NVS if they are not empty
         if (strlen(ssid) > 0 && strlen(password) > 0) {
@@ -97,6 +109,7 @@ esp_err_t wifi_setup_submit_handler(httpd_req_t *req) {
 
         // Store static IP in NVS
         store_static_ip(static_ip, gateway);
+        store_multicast_ip(multicast);
 
         httpd_resp_set_status(req, "303 See Other");
         httpd_resp_set_hdr(req, "Location", "/");
@@ -111,23 +124,6 @@ esp_err_t wifi_setup_submit_handler(httpd_req_t *req) {
         httpd_resp_send_err(req, HTTPD_405_METHOD_NOT_ALLOWED, "Method not allowed");
         return ESP_FAIL;
     }
-    return ESP_OK;
-}
-
-// index handler
-static esp_err_t index_handler(httpd_req_t *req) {
-    httpd_resp_set_type(req, "text/html");
-    httpd_resp_send(req, "<html><body><h1>Hello World!</h1><script>let sock=new WebSocket(`ws://${location.hostname}/ws`);</script></body></html>", -1);
-
-    // tcpip_adapter_ip_info_t ip_info;
-    // ESP_ERROR_CHECK(tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip_info));
-
-    // char url[80];
-    // sprintf(url, "http://localhost:3078/?%s", ip4addr_ntoa(&ip_info.ip));
-
-    // httpd_resp_set_status(req, "303 See Other");
-    // httpd_resp_set_hdr(req, "Location", url);
-    // httpd_resp_send(req, NULL, 0);
     return ESP_OK;
 }
 

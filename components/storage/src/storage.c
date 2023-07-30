@@ -120,3 +120,34 @@ esp_err_t read_static_ip(char *stored_static_ip, char *stored_gateway) {
     nvs_close(nvs_handle);
     return ESP_OK;
 }
+
+void store_multicast_ip(const char *multicast_ip) {
+    nvs_handle_t nvs_handle;
+    ESP_ERROR_CHECK(nvs_open("wifi_config", NVS_READWRITE, &nvs_handle));
+    nvs_set_str(nvs_handle, "multicast_ip", multicast_ip);
+    nvs_commit(nvs_handle);
+    nvs_close(nvs_handle);
+}
+
+esp_err_t read_multicast_ip(char *stored_multicast_ip) {
+    if (stored_multicast_ip == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    nvs_handle_t nvs_handle;
+    esp_err_t err = nvs_open("wifi_config", NVS_READWRITE, &nvs_handle);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    size_t multicast_ip_size = 16;
+
+    err = nvs_get_str(nvs_handle, "multicast_ip", stored_multicast_ip, &multicast_ip_size);
+    if (err != ESP_OK) {
+        nvs_close(nvs_handle);
+        return err;
+    }
+
+    nvs_close(nvs_handle);
+    return ESP_OK;
+}

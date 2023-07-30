@@ -1,13 +1,14 @@
 #include "esp_log.h"
 // #include "freertos/event_groups.h"
 #include "lwip/sockets.h"
+#include "storage.h"
 #include "udp_client.h"
 
 static const char *TAG = "udpclient";
 static QueueHandle_t dmxQueue = NULL;
 static int channel = 0;
 
-int beginUDP(in_addr_t address, uint16_t port) {
+int beginUDP(in_addr_t address, uint16_t port, const char *multicastIP) {
     uint8_t tx_buffer[1460];
     int udp_server;
 
@@ -31,6 +32,18 @@ int beginUDP(in_addr_t address, uint16_t port) {
         ESP_LOGE(TAG, "could not bind socket: %d", errno);
         return -1;
     }
+
+    // const char *multicastIP = "239.255.255.250";
+
+    // Join the multicast group
+    struct ip_mreq mreq;
+    mreq.imr_multiaddr.s_addr = inet_addr(multicastIP);
+    mreq.imr_interface.s_addr = htonl(INADDR_ANY);
+    if (setsockopt(udp_server, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0) {
+        ESP_LOGE(TAG, "Error in setting socket option IP_ADD_MEMBERSHIP, err = %d", errno);
+        return -1;
+    }
+
     fcntl(udp_server, F_SETFL, O_NONBLOCK);
     return udp_server;
 }
@@ -85,8 +98,13 @@ int recvUDP(int sock) {
 }
 
 void udp_client_task(void *pvParameters) {
+    char stored_multicast[16] = {0};
+    esp_err_t multicast_err = read_multicast_ip(stored_multicast);
+
+    ESP_LOGI(TAG, "starting udp client. Multicast address: %s", stored_multicast);
+
     while (1) {
-        int sock = beginUDP(INADDR_ANY, 6454);
+        int sock = beginUDP(INADDR_ANY, 6454, stored_multicast);
         if (sock < 0) {
             ESP_LOGE(TAG, "Unable to create socket, retrying: errno %d", errno);
             vTaskDelay(1000 / portTICK_PERIOD_MS);
