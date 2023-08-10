@@ -10,6 +10,7 @@
 #include <string.h>
 #include <sys/param.h>
 
+#include "FastLED.h"
 #include "addr_from_stdin.h"
 #include "driver/rmt.h"
 #include "esp_event.h"
@@ -21,7 +22,6 @@
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
 #include "functions.h"
-#include "led_strip.h"
 #include "ledstorage.h"
 #include "lwip/err.h"
 #include "lwip/sockets.h"
@@ -62,43 +62,17 @@ typedef unsigned char byte;
 float clk = 0;
 byte power = 0;  // power off
 
-led_strip_t *stripCreateInit(gpio_num_t gpio_num, rmt_channel_t channel, uint32_t num_leds) {
-    // strip 0
-    rmt_config_t config = RMT_DEFAULT_CONFIG_TX(gpio_num, channel);
-    // set counter clock to 40MHz
-    config.clk_div = 2;
-
-    ESP_ERROR_CHECK(rmt_config(&config));
-    ESP_ERROR_CHECK(rmt_driver_install(config.channel, 0, 0));
-
-    // install ws2812 driver
-    led_strip_config_t strip_config = LED_STRIP_DEFAULT_CONFIG(num_leds, (led_strip_dev_t)config.channel);
-    led_strip_t *strip = led_strip_new_rmt_ws2812(&strip_config);
-    if (!strip) {
-        ESP_LOGE(TAG, "install WS2812 driver failed");
-    }
-    // Clear LED strip (turn off all LEDs)
-    ESP_ERROR_CHECK(strip->clear(strip, 100));
-
-    return strip;
-}
-
 /**
  * expecting rgb as a float in [0,1]
  */
-void led_strip_setPixelRGB(led_strip_t *strip, u_int32_t index, float r, float g, float b) {
-    // remap r,g,b values to suppress low values
-    // r = r * r * r;
-    // g = g * g * g;
-    // b = b * b * b;
-
+void fastled_setPixelRGB(CRGB *leds, u_int32_t index, float r, float g, float b) {
     r = clamp(r, 0, 1);
     g = clamp(g, 0, 1);
     b = clamp(b, 0, 1);
 
     // ESP_LOGI(TAG, "rgb %f %f %f", r * 255, g * 255, b * 255);
 
-    strip->set_pixel(strip, index, 255 * r, 255 * g, 255 * b);
+    leds[index] = CRGB(255 * r, 255 * g, 255 * b);
 }
 
 static byte mem[SHADER_MEM_SIZE];
@@ -107,7 +81,7 @@ static byte shader[PROG_MEM_SIZE];
 int framecount = 0;
 
 // frame renderer, by using a shader and incoming data
-void frame(led_strip_t *strip0, led_strip_t *strip1, led_strip_t *strip2, byte *shader, float clk) {
+void frame(CRGB *leds_strip0, CRGB *leds_strip1, CRGB *leds_strip2, byte *shader, float clk) {
     for (int j = 0; j < NUM_LEDS0 + NUM_LEDS1 + NUM_LEDS2; j += 1) {
         byte version = shader[0];
         byte id = shader[1];
@@ -146,11 +120,11 @@ void frame(led_strip_t *strip0, led_strip_t *strip1, led_strip_t *strip2, byte *
 
         // ESP_LOGI(TAG, "counter %i, rgb %f %f %f", counter, r, g, b);
         if (j < NUM_LEDS0) {
-            led_strip_setPixelRGB(strip0, j, r, g, b);
+            fastled_setPixelRGB(leds_strip0, j, r, g, b);
         } else if (j < (NUM_LEDS0 + NUM_LEDS1)) {
-            led_strip_setPixelRGB(strip1, j - NUM_LEDS0, r, g, b);
+            fastled_setPixelRGB(leds_strip1, j - NUM_LEDS0, r, g, b);
         } else {
-            led_strip_setPixelRGB(strip2, j - NUM_LEDS0 - NUM_LEDS1, r, g, b);
+            fastled_setPixelRGB(leds_strip2, j - NUM_LEDS0 - NUM_LEDS1, r, g, b);
         }
     }
     framecount++;
@@ -174,26 +148,7 @@ void frame(led_strip_t *strip0, led_strip_t *strip1, led_strip_t *strip2, byte *
      * parallel 2x300 leds -> 45fps for scan shader
      *
      */
-
-    if (NUM_LEDS0 > 0) {
-        strip0->refresh_immediate(strip0);
-    }
-    if (NUM_LEDS1 > 0) {
-        strip1->refresh_immediate(strip1);
-    }
-    if (NUM_LEDS2 > 0) {
-        strip2->refresh_immediate(strip2);
-    }
-
-    if (NUM_LEDS0 > 0) {
-        strip0->wait(strip0, 50);
-    }
-    if (NUM_LEDS1 > 0) {
-        strip1->wait(strip1, 50);
-    }
-    if (NUM_LEDS2 > 0) {
-        strip2->wait(strip2, 50);
-    }
+    FastLED.show();
 }
 
 static void fps_task(void *pvParameters) {
@@ -279,9 +234,16 @@ static void led_strip_task(void *pvParameters) {
     ESP_LOGI(TAG, "configure %i leds on pin %i", NUM_LEDS2, DATA_PIN2);
 
     // initialize strip segments
-    led_strip_t *strip0 = stripCreateInit(DATA_PIN0, RMT_TX_CHANNEL0, NUM_LEDS0);
-    led_strip_t *strip1 = stripCreateInit(DATA_PIN1, RMT_TX_CHANNEL1, NUM_LEDS1);
-    led_strip_t *strip2 = stripCreateInit(DATA_PIN2, RMT_TX_CHANNEL2, NUM_LEDS2);
+    CRGB leds_strip0[NUM_LEDS0];
+    CRGB leds_strip1[NUM_LEDS1];
+    CRGB leds_strip2[NUM_LEDS2];
+
+    // fast led setup
+    FastLED.addLeds<WS2812, DATA_PIN0, GRB>(leds_strip0, NUM_LEDS0);  // Adjust <WS2812B> according to your LED strip type
+    FastLED.addLeds<WS2812, DATA_PIN1, GRB>(leds_strip1, NUM_LEDS1);
+    FastLED.addLeds<WS2812, DATA_PIN2, GRB>(leds_strip2, NUM_LEDS2);
+
+    FastLED.setCorrection(TypicalLEDStrip);
 
     // get shader from NVS
     readShader(shader);
@@ -300,11 +262,9 @@ static void led_strip_task(void *pvParameters) {
         clk += (float)elapsed * tick;
 
         if (power) {
-            frame(strip0, strip1, strip2, shader, clk);
+            frame(leds_strip0, leds_strip1, leds_strip2, shader, clk);
         } else {
-            strip0->clear(strip0, 50);
-            strip1->clear(strip1, 50);
-            strip2->clear(strip2, 50);
+            FastLED.clear(true);
             vTaskDelay(pdMS_TO_TICKS(100));
         }
 
