@@ -92,6 +92,10 @@ void led_strip_setPixelRGB(led_strip_t *strip, u_int32_t index, float r, float g
     // g = g * g * g;
     // b = b * b * b;
 
+    r = clamp(r, 0, 1);
+    g = clamp(g, 0, 1);
+    b = clamp(b, 0, 1);
+
     // ESP_LOGI(TAG, "rgb %f %f %f", r * 255, g * 255, b * 255);
 
     strip->set_pixel(strip, index, 255 * r, 255 * g, 255 * b);

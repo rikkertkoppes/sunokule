@@ -16,6 +16,10 @@ extern "C" {
 float frac(float x) {
     return x - floorf(x);
 }
+float clamp(float x, float min, float max) {
+    float t = x < min ? min : x;
+    return t > max ? max : t;
+}
 float smoothstep(float min, float max, float x) {
     float k = fmax(0, fmin(1, (x - min) / (max - min)));
     return k * k * (3.0 - 2.0 * k);
