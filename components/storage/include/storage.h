@@ -1,3 +1,7 @@
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef STORAGE_H
 #define STORAGE_H
 
@@ -9,4 +13,8 @@ esp_err_t read_static_ip(char *stored_static_ip, char *stored_gateway);
 void store_multicast_ip(const char *multicast_ip);
 esp_err_t read_multicast_ip(char *stored_multicast_ip);
 
+#endif
+
+#ifdef __cplusplus
+}
 #endif

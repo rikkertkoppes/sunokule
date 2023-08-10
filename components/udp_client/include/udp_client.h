@@ -1,3 +1,7 @@
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef UDPCLIENT_H
 #define UDPCLIENT_H
 
@@ -15,4 +19,8 @@ typedef struct {
 void udp_client_task(void *pvParameters);
 void startUDPTask(int stackSize, int prio, EventGroupHandle_t state, QueueHandle_t queue);
 
+#endif
+
+#ifdef __cplusplus
+}
 #endif

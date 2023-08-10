@@ -39,9 +39,9 @@
 #define RMT_TX_CHANNEL0 RMT_CHANNEL_0
 #define RMT_TX_CHANNEL1 RMT_CHANNEL_1
 #define RMT_TX_CHANNEL2 RMT_CHANNEL_2
-#define DATA_PIN0 CONFIG_SK_DATA_PIN_0
-#define DATA_PIN1 CONFIG_SK_DATA_PIN_1
-#define DATA_PIN2 CONFIG_SK_DATA_PIN_2
+#define DATA_PIN0 static_cast<gpio_num_t>(CONFIG_SK_DATA_PIN_0)
+#define DATA_PIN1 static_cast<gpio_num_t>(CONFIG_SK_DATA_PIN_1)
+#define DATA_PIN2 static_cast<gpio_num_t>(CONFIG_SK_DATA_PIN_2)
 #define NUM_LEDS0 CONFIG_SK_NUM_LEDS_0
 #define NUM_LEDS1 CONFIG_SK_NUM_LEDS_1
 #define NUM_LEDS2 CONFIG_SK_NUM_LEDS_2
@@ -312,7 +312,7 @@ static void led_strip_task(void *pvParameters) {
     }
 }
 
-void app_main(void) {
+extern "C" void app_main(void) {
     main_events = xQueueCreate(4, SHADER_MEM_SIZE);
     ESP_LOGI(TAG, "app main, start ledstrip task");
 
