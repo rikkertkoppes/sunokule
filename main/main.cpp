@@ -285,5 +285,5 @@ extern "C" void app_main(void) {
     // xTaskCreate(udp_client_task, "udp_client", 4096, NULL, 5, NULL);
     xTaskCreate(fps_task, "fps", 4096, NULL, 8, NULL);
     xTaskCreate(params_task, "params", 4096, NULL, 8, NULL);
-    xTaskCreatePinnedToCore(led_strip_task, "led_strip", 2 * 4096, NULL, 8, NULL, 1);
+    xTaskCreatePinnedToCore(led_strip_task, "led_strip", 2 * 4096, NULL, 20, NULL, 1);
 }
