@@ -10,7 +10,6 @@
 #include <string.h>
 #include <sys/param.h>
 
-#include "addr_from_stdin.h"
 #include "driver/rmt.h"
 #include "esp_event.h"
 #include "esp_log.h"
@@ -30,7 +29,6 @@
 #include "math.h"
 #include "nvs_flash.h"
 #include "primitives.h"
-#include "protocol_examples_common.h"
 #include "storage.h"
 #include "udp_client.h"
 #include "webserver.h"

@@ -1,7 +1,10 @@
+#include "wifi_conn.h"
+
 #include <esp_wifi.h>
 
 #include "esp_event.h"
 #include "esp_log.h"
+#include "esp_bit_defs.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "nvs_flash.h"
@@ -67,14 +70,14 @@ bool wifi_init_sta(char *stored_ssid, char *stored_pass, char *stored_static_ip,
     if (strlen(stored_static_ip) > 0 && strlen(stored_gateway) > 0) {
         ESP_LOGI(TAG, "init wifi from stored ip %s gatweay %s.", stored_static_ip, stored_gateway);
 
-        // Set the static IP address
-        esp_netif_ip_info_t ip_info;
         esp_netif_dhcpc_stop(sta_netif);
 
-        ip4addr_aton(stored_static_ip, &ip_info.ip);
-        ip4addr_aton(stored_gateway, &ip_info.gw);
-        IP4_ADDR(&ip_info.netmask, 255, 255, 255, 0);
-
+        // Set the static IP address
+        esp_netif_ip_info_t ip_info = {
+            .ip = {.addr = esp_ip4addr_aton(stored_static_ip) },
+            .gw = {.addr = esp_ip4addr_aton(stored_gateway) },
+            .netmask = {.addr = ESP_IP4TOADDR(255, 255, 255, 0) }
+        };
         esp_netif_set_ip_info(sta_netif, &ip_info);
     } else {
         esp_netif_dhcpc_start(sta_netif);
@@ -155,10 +158,11 @@ void wifi_init_ap(void) {
     esp_netif_t *ap_netif = esp_netif_create_default_wifi_ap();
 
     // Set a predefined IP address, netmask, and gateway for the access point
-    esp_netif_ip_info_t ip_info;
-    IP4_ADDR(&ip_info.ip, 192, 168, 4, 1);
-    IP4_ADDR(&ip_info.gw, 192, 168, 4, 1);
-    IP4_ADDR(&ip_info.netmask, 255, 255, 255, 0);
+    esp_netif_ip_info_t ip_info = {
+        .ip = {.addr = ESP_IP4TOADDR(192, 168, 4, 1) },
+        .gw = {.addr = ESP_IP4TOADDR(192, 168, 4, 1) },
+        .netmask = {.addr = ESP_IP4TOADDR(255, 255, 255, 0) }
+    };
     esp_netif_dhcps_stop(ap_netif);
     esp_netif_set_ip_info(ap_netif, &ip_info);
     esp_netif_dhcps_start(ap_netif);

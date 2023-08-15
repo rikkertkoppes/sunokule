@@ -1,10 +1,9 @@
+#include "webserver.h"
 
-#include <esp_https_server.h>
+#include "esp_https_server.h"
 
 #include "esp_log.h"
-#include "freertos/event_groups.h"
 #include "storage.h"
-// #include "tcpip_adapter.h"
 #include "esp_netif.h"
 #include "wifi_conn.h"
 
@@ -19,8 +18,8 @@ EventGroupHandle_t webserverState;
 static QueueHandle_t eventQueue = NULL;
 
 // self signed certs
-extern const uint8_t cacert_pem_start[] asm("_binary_cacert_pem_start");
-extern const uint8_t cacert_pem_end[] asm("_binary_cacert_pem_end");
+extern const uint8_t servercert_pem_start[] asm("_binary_servercert_pem_start");
+extern const uint8_t servercert_pem_end[] asm("_binary_servercert_pem_end");
 extern const uint8_t prvtkey_pem_start[] asm("_binary_prvtkey_pem_start");
 extern const uint8_t prvtkey_pem_end[] asm("_binary_prvtkey_pem_end");
 
@@ -291,8 +290,8 @@ void start_webserver(void) {
     https_config.httpd.uri_match_fn = httpd_uri_match_wildcard;
 
     // add certificates
-    https_config.cacert_pem = cacert_pem_start;
-    https_config.cacert_len = cacert_pem_end - cacert_pem_start;
+    https_config.servercert = servercert_pem_start;
+    https_config.servercert_len = servercert_pem_end - servercert_pem_start;
     https_config.prvtkey_pem = prvtkey_pem_start;
     https_config.prvtkey_len = prvtkey_pem_end - prvtkey_pem_start;
 
@@ -354,7 +353,7 @@ void start_webserver(void) {
 
 void startWebserverTask(int stackSize, int prio, EventGroupHandle_t state, QueueHandle_t queue) {
     eventQueue = queue;
-    ESP_LOGI(TAG, "Available heap: %u", esp_get_free_heap_size());
+    ESP_LOGI(TAG, "Available heap: %lu", (unsigned long)esp_get_free_heap_size());
     start_webserver();
     ESP_LOGI(TAG, "Webserver running");
     // xTaskCreate(webserverTask, "webserver_task", stackSize, (void *)state, prio, NULL);
