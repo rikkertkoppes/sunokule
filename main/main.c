@@ -6,16 +6,16 @@
    software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
    CONDITIONS OF ANY KIND, either express or implied.
 */
+
+#include "sdkconfig.h"
+
 #include <lwip/netdb.h>
 #include <string.h>
 #include <sys/param.h>
 
-#include "driver/rmt.h"
 #include "esp_event.h"
 #include "esp_log.h"
-#include "esp_netif.h"
 #include "esp_system.h"
-#include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
@@ -27,16 +27,13 @@
 #include "lwip/sys.h"
 #include "mapping.h"
 #include "math.h"
-#include "nvs_flash.h"
 #include "primitives.h"
 #include "storage.h"
 #include "udp_client.h"
 #include "webserver.h"
 #include "wifi_conn.h"
+#include "ws2812.h"
 
-#define RMT_TX_CHANNEL0 RMT_CHANNEL_0
-#define RMT_TX_CHANNEL1 RMT_CHANNEL_1
-#define RMT_TX_CHANNEL2 RMT_CHANNEL_2
 #define DATA_PIN0 CONFIG_SK_DATA_PIN_0
 #define DATA_PIN1 CONFIG_SK_DATA_PIN_1
 #define DATA_PIN2 CONFIG_SK_DATA_PIN_2
@@ -60,31 +57,17 @@ typedef unsigned char byte;
 float clk = 0;
 byte power = 0;  // power off
 
-led_strip_t *stripCreateInit(gpio_num_t gpio_num, rmt_channel_t channel, uint32_t num_leds) {
-    // strip 0
-    rmt_config_t config = RMT_DEFAULT_CONFIG_TX(gpio_num, channel);
-    // set counter clock to 40MHz
-    config.clk_div = 2;
-
-    ESP_ERROR_CHECK(rmt_config(&config));
-    ESP_ERROR_CHECK(rmt_driver_install(config.channel, 0, 0));
-
-    // install ws2812 driver
-    led_strip_config_t strip_config = LED_STRIP_DEFAULT_CONFIG(num_leds, (led_strip_dev_t)config.channel);
-    led_strip_t *strip = led_strip_new_rmt_ws2812(&strip_config);
-    if (!strip) {
-        ESP_LOGE(TAG, "install WS2812 driver failed");
-    }
-    // Clear LED strip (turn off all LEDs)
-    ESP_ERROR_CHECK(strip->clear(strip, 100));
-
-    return strip;
-}
+static const int num_pixels[] = {
+    NUM_LEDS0,
+    NUM_LEDS1,
+    NUM_LEDS2
+};
+static const int num_strands = sizeof(num_pixels) / sizeof(num_pixels[0]);
 
 /**
  * expecting rgb as a float in [0,1]
  */
-void led_strip_setPixelRGB(led_strip_t *strip, u_int32_t index, float r, float g, float b) {
+void led_strip_setPixelRGB(ws2812_pixel_t *pixels, u_int32_t index, float r, float g, float b) {
     // remap r,g,b values to suppress low values
     // r = r * r * r;
     // g = g * g * g;
@@ -96,7 +79,11 @@ void led_strip_setPixelRGB(led_strip_t *strip, u_int32_t index, float r, float g
 
     // ESP_LOGI(TAG, "rgb %f %f %f", r * 255, g * 255, b * 255);
 
-    strip->set_pixel(strip, index, 255 * r, 255 * g, 255 * b);
+    pixels[index] = (ws2812_pixel_t){
+        .red = 255 * r,
+        .green = 255 * g,
+        .blue = 255 * b,
+    };
 }
 
 static byte mem[SHADER_MEM_SIZE];
@@ -105,7 +92,7 @@ static byte shader[PROG_MEM_SIZE];
 int framecount = 0;
 
 // frame renderer, by using a shader and incoming data
-void frame(led_strip_t *strip0, led_strip_t *strip1, led_strip_t *strip2, byte *shader, float clk) {
+void frame(ws2812_strands_t strands, byte *shader, float clk) {
     for (int j = 0; j < NUM_LEDS0 + NUM_LEDS1 + NUM_LEDS2; j += 1) {
         byte version = shader[0];
         byte id = shader[1];
@@ -144,54 +131,14 @@ void frame(led_strip_t *strip0, led_strip_t *strip1, led_strip_t *strip2, byte *
 
         // ESP_LOGI(TAG, "counter %i, rgb %f %f %f", counter, r, g, b);
         if (j < NUM_LEDS0) {
-            led_strip_setPixelRGB(strip0, j, r, g, b);
+            led_strip_setPixelRGB(strands[0], j, r, g, b);
         } else if (j < (NUM_LEDS0 + NUM_LEDS1)) {
-            led_strip_setPixelRGB(strip1, j - NUM_LEDS0, r, g, b);
+            led_strip_setPixelRGB(strands[1], j - NUM_LEDS0, r, g, b);
         } else {
-            led_strip_setPixelRGB(strip2, j - NUM_LEDS0 - NUM_LEDS1, r, g, b);
+            led_strip_setPixelRGB(strands[2], j - NUM_LEDS0 - NUM_LEDS1, r, g, b);
         }
     }
     framecount++;
-    /**
-     * TODO: we can do even better than this
-     * - allocate 2 buffers for the entire strip
-     * - directly use rmt_write_sample and pass the correct memory segment
-     * - calculate next frame while hardware is writing to rmt
-     * - rather than calculate => refresh => wait, do:
-     * -             refresh => calculate next => wait
-     *
-     */
-    /**
-     * note: letting the rmt hardware write multiple strips in parallel,
-     * then waiting for them to finish
-     *
-     * this allows for faster framerates by segmenting the strip
-     * otherwise the strip timing becomes a bottleneck
-     *
-     * sequentially 2x300 leds -> 33fps for scan shader
-     * parallel 2x300 leds -> 45fps for scan shader
-     *
-     */
-
-    if (NUM_LEDS0 > 0) {
-        strip0->refresh_immediate(strip0);
-    }
-    if (NUM_LEDS1 > 0) {
-        strip1->refresh_immediate(strip1);
-    }
-    if (NUM_LEDS2 > 0) {
-        strip2->refresh_immediate(strip2);
-    }
-
-    if (NUM_LEDS0 > 0) {
-        strip0->wait(strip0, 50);
-    }
-    if (NUM_LEDS1 > 0) {
-        strip1->wait(strip1, 50);
-    }
-    if (NUM_LEDS2 > 0) {
-        strip2->wait(strip2, 50);
-    }
 }
 
 static void fps_task(void *pvParameters) {
@@ -234,8 +181,8 @@ static void params_task(void *pvParameters) {
             printf("\n");
             uint8_t datatype = data[0];
             switch (datatype) {
-                // shader packet
-                case 0:
+
+                case 0: // shader packet
                     // store shader in NVS
                     saveShader(data + 2, data[1]);
                     // reset shader time
@@ -244,19 +191,19 @@ static void params_task(void *pvParameters) {
                     // reinitialize working memory
                     setMem(mem, shader);
                     break;
-                // params packet
-                case 1:
+
+                case 1: // params packet
                     setParams(data + 1);
                     break;
-                // power on/ off packet
-                case 2:
+
+                case 2: // power on/ off packet
                     // reset shader time
                     clk = 0;
                     power = data[1];
                     savePowerState(power);
                     break;
-                // dmx packet
-                case 3:
+
+                case 3: // dmx packet
                     // put dmx data into memory
                     setDMX(mem, data);
                     printf("%i %i %i \n", getDMX(mem, 0), getDMX(mem, 1), getDMX(mem, 2));
@@ -267,19 +214,11 @@ static void params_task(void *pvParameters) {
 }
 
 static void led_strip_task(void *pvParameters) {
+    ws2812_bus_handle_t bus = (ws2812_bus_handle_t)pvParameters;
     float tick = 0.001;
 
     // uint16_t start_rgb = 0;
     uint32_t time = clock();
-
-    ESP_LOGI(TAG, "configure %i leds on pin %i", NUM_LEDS0, DATA_PIN0);
-    ESP_LOGI(TAG, "configure %i leds on pin %i", NUM_LEDS1, DATA_PIN1);
-    ESP_LOGI(TAG, "configure %i leds on pin %i", NUM_LEDS2, DATA_PIN2);
-
-    // initialize strip segments
-    led_strip_t *strip0 = stripCreateInit(DATA_PIN0, RMT_TX_CHANNEL0, NUM_LEDS0);
-    led_strip_t *strip1 = stripCreateInit(DATA_PIN1, RMT_TX_CHANNEL1, NUM_LEDS1);
-    led_strip_t *strip2 = stripCreateInit(DATA_PIN2, RMT_TX_CHANNEL2, NUM_LEDS2);
 
     // get shader from NVS
     readShader(shader);
@@ -297,17 +236,66 @@ static void led_strip_task(void *pvParameters) {
         // clock value in seconds
         clk += (float)elapsed * tick;
 
+        ws2812_strands_t strands = ws2812_get_strands(bus);
         if (power) {
-            frame(strip0, strip1, strip2, shader, clk);
+            frame(strands, shader, clk);
         } else {
-            strip0->clear(strip0, 50);
-            strip1->clear(strip1, 50);
-            strip2->clear(strip2, 50);
+            for (int s = 0; s < num_strands; s++) {
+                for (int i = 0; i < num_pixels[s]; i++) {
+                    strands[s][i] = (ws2812_pixel_t){0};
+                }
+            }
+        }
+        ws2812_enqueue_strands(bus, strands);
+
+        if (!power) {
             vTaskDelay(pdMS_TO_TICKS(100));
         }
-
-        vTaskDelay(pdMS_TO_TICKS(1));
     }
+}
+
+static void ws2812_stats_printer_task(void *arg) {
+    ws2812_bus_handle_t bus = (ws2812_bus_handle_t)arg;
+
+    while (true) {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        ws2812_stats_t stats = {0};
+        ws2812_get_stats(bus, &stats);
+        if (stats.max_late_buffers > 0 || stats.dma_underrun_errors > 0) {
+            // ws2812_reset_stats(bus);
+            ESP_LOGI(
+                TAG,
+                "max_late_buffers=%d, dma_underrun_errors=%d, max_int_time=%" PRIu32 ", needed_late_buffers=%d",
+                stats.max_late_buffers,
+                stats.dma_underrun_errors, stats.max_int_time, stats.needed_late_buffers);
+        }
+    }
+}
+
+static ws2812_bus_handle_t init_ws2812() {
+    ESP_LOGI(TAG, "configure %i leds on pin %i", NUM_LEDS0, DATA_PIN0);
+    ESP_LOGI(TAG, "configure %i leds on pin %i", NUM_LEDS1, DATA_PIN1);
+    ESP_LOGI(TAG, "configure %i leds on pin %i", NUM_LEDS2, DATA_PIN2);
+
+    ws2812_bus_config_t config = {
+        .num_strands = num_strands,
+        .num_pixels = {
+            NUM_LEDS0,
+            NUM_LEDS1,
+            NUM_LEDS2,
+        },
+        .gpio_pins = {
+            DATA_PIN0,
+            DATA_PIN1,
+            DATA_PIN2,
+        },
+        .max_late_buffers = 2,
+    };
+    ws2812_bus_handle_t bus = NULL;
+    ESP_ERROR_CHECK(ws2812_new(&config, &bus));
+    xTaskCreate(ws2812_stats_printer_task, "ws2812_stats_printer", 1024, (void *)bus, 1, NULL);
+
+    return bus;
 }
 
 void app_main(void) {
@@ -323,5 +311,7 @@ void app_main(void) {
     // xTaskCreate(udp_client_task, "udp_client", 4096, NULL, 5, NULL);
     xTaskCreate(fps_task, "fps", 4096, NULL, 8, NULL);
     xTaskCreate(params_task, "params", 4096, NULL, 8, NULL);
-    xTaskCreatePinnedToCore(led_strip_task, "led_strip", 2 * 4096, NULL, 8, NULL, 1);
+
+    ws2812_bus_handle_t bus = init_ws2812();
+    xTaskCreatePinnedToCore(led_strip_task, "led_strip", 2 * 4096, bus, 8, NULL, 1);
 }

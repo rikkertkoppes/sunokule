@@ -10,13 +10,13 @@ config SK_DATA_PIN_1
     int "data pin segment 1"
     default 26
     help
-        Data pin for segment 1
+        Data pin for segment 1 (or -1 if unused)
 
 config SK_DATA_PIN_2
     int "data pin segment 2"
     default 27
     help
-        Data pin for segment 2        
+        Data pin for segment 2 (or -1 if unused)
     
 
 config SK_NUM_LEDS_0
@@ -29,13 +29,13 @@ config SK_NUM_LEDS_1
     int "num leds 1"
     default 0
     help
-        Number of leds for segment 1
+        Number of leds for segment 1 (or 0 if unused)
 
 config SK_NUM_LEDS_2
     int "num leds 2"
     default 0
     help
-        Number of leds for segment 2   
+        Number of leds for segment 2 (or 0 if unused)
         
 config SK_WIFI_SSID
     string "ssid"
