@@ -20,7 +20,6 @@
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
 #include "functions.h"
-#include "led_strip.h"
 #include "ledstorage.h"
 #include "lwip/err.h"
 #include "lwip/sockets.h"
@@ -67,7 +66,7 @@ static const int num_strands = sizeof(num_pixels) / sizeof(num_pixels[0]);
 /**
  * expecting rgb as a float in [0,1]
  */
-void led_strip_setPixelRGB(ws2812_pixel_t *pixels, u_int32_t index, float r, float g, float b) {
+void set_pixel_rgb(ws2812_pixel_t *pixels, u_int32_t index, float r, float g, float b) {
     // remap r,g,b values to suppress low values
     // r = r * r * r;
     // g = g * g * g;
@@ -131,11 +130,11 @@ void frame(ws2812_strands_t strands, byte *shader, float clk) {
 
         // ESP_LOGI(TAG, "counter %i, rgb %f %f %f", counter, r, g, b);
         if (j < NUM_LEDS0) {
-            led_strip_setPixelRGB(strands[0], j, r, g, b);
+            set_pixel_rgb(strands[0], j, r, g, b);
         } else if (j < (NUM_LEDS0 + NUM_LEDS1)) {
-            led_strip_setPixelRGB(strands[1], j - NUM_LEDS0, r, g, b);
+            set_pixel_rgb(strands[1], j - NUM_LEDS0, r, g, b);
         } else {
-            led_strip_setPixelRGB(strands[2], j - NUM_LEDS0 - NUM_LEDS1, r, g, b);
+            set_pixel_rgb(strands[2], j - NUM_LEDS0 - NUM_LEDS1, r, g, b);
         }
     }
     framecount++;
