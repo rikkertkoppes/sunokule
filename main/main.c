@@ -33,13 +33,6 @@
 #include "wifi_conn.h"
 #include "ws2812.h"
 
-#define DATA_PIN0 CONFIG_SK_DATA_PIN_0
-#define DATA_PIN1 CONFIG_SK_DATA_PIN_1
-#define DATA_PIN2 CONFIG_SK_DATA_PIN_2
-#define NUM_LEDS0 CONFIG_SK_NUM_LEDS_0
-#define NUM_LEDS1 CONFIG_SK_NUM_LEDS_1
-#define NUM_LEDS2 CONFIG_SK_NUM_LEDS_2
-
 // update mapping => colors off, strip 0, ok, others wrong
 // swap data pins => no change
 // swap refresh order (1,0,2) => no change
@@ -57,9 +50,14 @@ float clk = 0;
 byte power = 0;  // power off
 
 static const int num_pixels[] = {
-    NUM_LEDS0,
-    NUM_LEDS1,
-    NUM_LEDS2
+    CONFIG_SK_NUM_LEDS_0,
+    CONFIG_SK_NUM_LEDS_1,
+    CONFIG_SK_NUM_LEDS_2,
+};
+static const int gpio_pins[] = {
+    CONFIG_SK_DATA_PIN_0,
+    CONFIG_SK_DATA_PIN_1,
+    CONFIG_SK_DATA_PIN_2,
 };
 static const int num_strands = sizeof(num_pixels) / sizeof(num_pixels[0]);
 
@@ -92,49 +90,46 @@ int framecount = 0;
 
 // frame renderer, by using a shader and incoming data
 void frame(ws2812_strands_t strands, byte *shader, float clk) {
-    for (int j = 0; j < NUM_LEDS0 + NUM_LEDS1 + NUM_LEDS2; j += 1) {
-        byte version = shader[0];
-        byte id = shader[1];
+    int j = 0;
+    for (int s = 0; s < num_strands; s++) {
+        for (int p = 0; p < num_pixels[s]; p++, j++) {
+            // byte version = shader[0];
+            // byte id = shader[1];
 
-        uint16_t memStart = getUint16(shader, 2);
-        uint16_t memSize = getUint16(shader, 4);
-        uint16_t progStart = getUint16(shader, 6);
-        uint16_t progSize = getUint16(shader, 8);
+            // uint16_t memStart = getUint16(shader, 2);
+            uint16_t memSize = getUint16(shader, 4);
+            uint16_t progStart = getUint16(shader, 6);
+            // uint16_t progSize = getUint16(shader, 8);
 
-        uint16_t mem_end = memSize / 4;
+            uint16_t mem_end = memSize / 4;
 
-        // set params
-        // copy time into end of memory
-        setFloat(mem, mem_end, clk);
-        // copy current led index into memory
-        setFloat(mem, mem_end + 1, (float)j);
-        // copy current led mapping directly from in memory
-        setMapping(mem, mem_end + 2, mapping, j);
+            // set params
+            // copy time into end of memory
+            setFloat(mem, mem_end, clk);
+            // copy current led index into memory
+            setFloat(mem, mem_end + 1, (float)j);
+            // copy current led mapping directly from in memory
+            setMapping(mem, mem_end + 2, mapping, j);
 
-        // execute
-        byte counter = 0;
-        byte *prog = shader + progStart;
-        execute(mem, prog, &counter);
+            // execute
+            byte counter = 0;
+            byte *prog = shader + progStart;
+            execute(mem, prog, &counter);
 
-        // program counter is currently at the end program instruction
-        // master value is the first param of the end program instruction
-        byte _master = data_fetch(mem, prog, &counter);
-        // result value is the second param of the end program instruction
-        byte _result = data_fetch(mem, prog, &counter);
+            // program counter is currently at the end program instruction
+            // master value is the first param of the end program instruction
+            byte _master = data_fetch(mem, prog, &counter);
+            // result value is the second param of the end program instruction
+            byte _result = data_fetch(mem, prog, &counter);
 
-        // retrieve rgb values
-        float m = getFloat(mem, _master);
-        float r = m * getFloat(mem, _result);
-        float g = m * getFloat(mem, _result + 1);
-        float b = m * getFloat(mem, _result + 2);
+            // retrieve rgb values
+            float m = getFloat(mem, _master);
+            float r = m * getFloat(mem, _result);
+            float g = m * getFloat(mem, _result + 1);
+            float b = m * getFloat(mem, _result + 2);
 
-        // ESP_LOGI(TAG, "counter %i, rgb %f %f %f", counter, r, g, b);
-        if (j < NUM_LEDS0) {
-            set_pixel_rgb(strands[0], j, r, g, b);
-        } else if (j < (NUM_LEDS0 + NUM_LEDS1)) {
-            set_pixel_rgb(strands[1], j - NUM_LEDS0, r, g, b);
-        } else {
-            set_pixel_rgb(strands[2], j - NUM_LEDS0 - NUM_LEDS1, r, g, b);
+            // ESP_LOGI(TAG, "counter %i, rgb %f %f %f", counter, r, g, b);
+            set_pixel_rgb(strands[s], p, r, g, b);
         }
     }
     framecount++;
@@ -212,8 +207,47 @@ static void params_task(void *pvParameters) {
     }
 }
 
+static void clear_strands(ws2812_strands_t strands) {
+    for (int s = 0; s < num_strands; s++) {
+        for (int i = 0; i < num_pixels[s]; i++) {
+            strands[s][i] = (ws2812_pixel_t){0};
+        }
+    }
+}
+
+static void ws2812_stats_printer_task(void *arg) {
+    ws2812_bus_handle_t bus = (ws2812_bus_handle_t)arg;
+
+    while (true) {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        ws2812_stats_t stats = {0};
+        ws2812_get_stats(bus, &stats);
+        if (stats.max_late_buffers > 0 || stats.dma_underrun_errors > 0) {
+            // ws2812_reset_stats(bus);
+            ESP_LOGI(
+                TAG,
+                "max_late_buffers=%d, dma_underrun_errors=%d, max_int_time=%" PRIu32 ", needed_late_buffers=%d",
+                stats.max_late_buffers,
+                stats.dma_underrun_errors, stats.max_int_time, stats.needed_late_buffers);
+        }
+    }
+}
+
 static void led_strip_task(void *pvParameters) {
-    ws2812_bus_handle_t bus = (ws2812_bus_handle_t)pvParameters;
+    // Instantiate WS2812 driver
+    ws2812_bus_config_t config = {
+        .num_strands = num_strands,
+        .max_late_buffers = 2,
+    };
+    for (int s = 0; s < num_strands; s++) {
+        config.num_pixels[s] = num_pixels[s];
+        config.gpio_pins[s] = gpio_pins[s];
+        ESP_LOGI(TAG, "configure %i leds on pin %i", num_pixels[s], gpio_pins[s]);
+    }
+    ws2812_bus_handle_t bus = NULL;
+    ESP_ERROR_CHECK(ws2812_new(&config, &bus));
+    xTaskCreate(ws2812_stats_printer_task, "ws2812_stats_printer", 1024, (void *)bus, 1, NULL);
+
     float tick = 0.001;
 
     // uint16_t start_rgb = 0;
@@ -239,11 +273,7 @@ static void led_strip_task(void *pvParameters) {
         if (power) {
             frame(strands, shader, clk);
         } else {
-            for (int s = 0; s < num_strands; s++) {
-                for (int i = 0; i < num_pixels[s]; i++) {
-                    strands[s][i] = (ws2812_pixel_t){0};
-                }
-            }
+            clear_strands(strands);
         }
         ws2812_enqueue_strands(bus, strands);
 
@@ -251,50 +281,6 @@ static void led_strip_task(void *pvParameters) {
             vTaskDelay(pdMS_TO_TICKS(100));
         }
     }
-}
-
-static void ws2812_stats_printer_task(void *arg) {
-    ws2812_bus_handle_t bus = (ws2812_bus_handle_t)arg;
-
-    while (true) {
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        ws2812_stats_t stats = {0};
-        ws2812_get_stats(bus, &stats);
-        if (stats.max_late_buffers > 0 || stats.dma_underrun_errors > 0) {
-            // ws2812_reset_stats(bus);
-            ESP_LOGI(
-                TAG,
-                "max_late_buffers=%d, dma_underrun_errors=%d, max_int_time=%" PRIu32 ", needed_late_buffers=%d",
-                stats.max_late_buffers,
-                stats.dma_underrun_errors, stats.max_int_time, stats.needed_late_buffers);
-        }
-    }
-}
-
-static ws2812_bus_handle_t init_ws2812() {
-    ESP_LOGI(TAG, "configure %i leds on pin %i", NUM_LEDS0, DATA_PIN0);
-    ESP_LOGI(TAG, "configure %i leds on pin %i", NUM_LEDS1, DATA_PIN1);
-    ESP_LOGI(TAG, "configure %i leds on pin %i", NUM_LEDS2, DATA_PIN2);
-
-    ws2812_bus_config_t config = {
-        .num_strands = num_strands,
-        .num_pixels = {
-            NUM_LEDS0,
-            NUM_LEDS1,
-            NUM_LEDS2,
-        },
-        .gpio_pins = {
-            DATA_PIN0,
-            DATA_PIN1,
-            DATA_PIN2,
-        },
-        .max_late_buffers = 2,
-    };
-    ws2812_bus_handle_t bus = NULL;
-    ESP_ERROR_CHECK(ws2812_new(&config, &bus));
-    xTaskCreate(ws2812_stats_printer_task, "ws2812_stats_printer", 1024, (void *)bus, 1, NULL);
-
-    return bus;
 }
 
 void app_main(void) {
@@ -311,6 +297,5 @@ void app_main(void) {
     xTaskCreate(fps_task, "fps", 4096, NULL, 8, NULL);
     xTaskCreate(params_task, "params", 4096, NULL, 8, NULL);
 
-    ws2812_bus_handle_t bus = init_ws2812();
-    xTaskCreatePinnedToCore(led_strip_task, "led_strip", 2 * 4096, bus, 8, NULL, 1);
+    xTaskCreatePinnedToCore(led_strip_task, "led_strip", 2 * 4096, NULL, 8, NULL, 1);
 }
