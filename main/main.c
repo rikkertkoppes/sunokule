@@ -32,6 +32,7 @@
 #include "webserver.h"
 #include "wifi_conn.h"
 #include "ws2812.h"
+#include "taskmon.h"
 
 // update mapping => colors off, strip 0, ok, others wrong
 // swap data pins => no change
@@ -137,6 +138,8 @@ void frame(ws2812_strands_t strands, byte *shader, float clk) {
 
 static void fps_task(void *pvParameters) {
     while (true) {
+        dump_tasks();
+
         ESP_LOGI(TAG, "fps %i", framecount);
         char data[80];
         sprintf(data, "{\"fps\":%i,\"power\":%i}", framecount, power);
