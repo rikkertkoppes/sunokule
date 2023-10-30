@@ -189,9 +189,9 @@ static inline void yield_to_idle_if_needed() {
 
 static void fps_task(void *pvParameters) {
     while (true) {
-        dump_tasks();
+        // dump_tasks();
 
-        ESP_LOGI(TAG, "fps %i", framecount);
+        ESP_LOGI(TAG, "fps %i, power %i", framecount, power);
         char data[80];
         sprintf(data, "{\"fps\":%i,\"power\":%i}", framecount, power);
         ws_broadcast(data);
