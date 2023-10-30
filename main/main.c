@@ -138,9 +138,9 @@ void frame(ws2812_strands_t strands, byte *shader, float clk) {
 
 static void fps_task(void *pvParameters) {
     while (true) {
-        dump_tasks();
+        // dump_tasks();
 
-        ESP_LOGI(TAG, "fps %i", framecount);
+        ESP_LOGI(TAG, "fps %i, power %i", framecount, power);
         char data[80];
         sprintf(data, "{\"fps\":%i,\"power\":%i}", framecount, power);
         ws_broadcast(data);
