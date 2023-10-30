@@ -136,6 +136,57 @@ void frame(ws2812_strands_t strands, byte *shader, float clk) {
     framecount++;
 }
 
+/**
+ * Last idle run timestamp for each CPU.
+ *
+ * We use this timestamp to occassionally 'yield'
+ * to the idle tasks, to ensure any cleanup is happening
+ * and watchdogs are triggered. We want to keep using
+ * the watchdogs, to ensure we don't accidentally cause
+ * a stall anywhere.
+ * Normally, we could just put a yield in the application
+ * idle hook, and have the background task also run at
+ * prio 0, effectively giving 100% of the idle time to
+ * our task. However, this doesn't work due to the unfair
+ * scheduling implemented in ESP's patched FreeRTOS.
+ * See https://docs.espressif.com/projects/esp-idf/en/v5.1.1/esp32/api-reference/system/freertos_idf.html#time-slicing
+ *
+ * ESP timer is 64 bit (us), but we'll be out of sync
+ * with the main loop by only <5s, so that easily fits
+ * in 32 bit, which can be atomically read/written.
+ */
+static volatile uint32_t last_idle_run[2];
+
+/**
+ * Mark each time the idle loop got a chance to run.
+ * Needs to be in IRAM.
+ */
+IRAM_ATTR void vApplicationIdleHook(void) {
+    BaseType_t core = xPortGetCoreID();
+    assert(core >= 0 && core <= 1);
+    last_idle_run[core] = (uint32_t)esp_timer_get_time();
+}
+
+/**
+ * Maximum time in us before yielding to idle tasks.
+ */
+#define WATCHDOG_FEED_INTERVAL_US (CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000000UL - 500000)
+
+/**
+ * Sleep for a bit if needed to allow idle tasks to run,
+ * to prevent task watchdog timeout.
+ */
+static inline void yield_to_idle_if_needed() {
+    BaseType_t core = xPortGetCoreID();
+    assert(core >= 0 && core <= 1);
+
+    uint32_t now = (uint32_t)esp_timer_get_time();
+    if (now - last_idle_run[core] >= WATCHDOG_FEED_INTERVAL_US) {
+        // 'Yield' for one tick, should be enough to give idle tasks some runtime
+        vTaskDelay(1);
+    }
+}
+
 static void fps_task(void *pvParameters) {
     while (true) {
         dump_tasks();
@@ -283,12 +334,12 @@ static void led_strip_task(void *pvParameters) {
         if (!power) {
             vTaskDelay(pdMS_TO_TICKS(100));
         }
+        yield_to_idle_if_needed();
     }
 }
 
 void app_main(void) {
     main_events = xQueueCreate(4, SHADER_MEM_SIZE);
-    ESP_LOGI(TAG, "app main, start ledstrip task");
 
     init_flash();
 
@@ -300,5 +351,5 @@ void app_main(void) {
     xTaskCreate(fps_task, "fps", 4096, NULL, 8, NULL);
     xTaskCreate(params_task, "params", 4096, NULL, 8, NULL);
 
-    xTaskCreatePinnedToCore(led_strip_task, "led_strip", 2 * 4096, NULL, 8, NULL, 1);
+    xTaskCreatePinnedToCore(led_strip_task, "led_strip", 2 * 4096, NULL, 1, NULL, 1);
 }
