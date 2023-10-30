@@ -249,7 +249,7 @@ static void led_strip_task(void *pvParameters) {
     }
     ws2812_bus_handle_t bus = NULL;
     ESP_ERROR_CHECK(ws2812_new(&config, &bus));
-    xTaskCreate(ws2812_stats_printer_task, "ws2812_stats_printer", 1024, (void *)bus, 1, NULL);
+    xTaskCreate(ws2812_stats_printer_task, "ws2812_stats_printer", 2048, (void *)bus, 2, NULL);
 
     float tick = 0.001;
 
