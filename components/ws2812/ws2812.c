@@ -81,28 +81,22 @@ static const size_t pixel_size_bytes = 24 * bit_size_bytes;
  * The return value is the size of the (DMA) buffer you'll need to allocate
  * (per DMA descriptor).
  */
-static size_t frame_get_buffer_size(size_t max_size, size_t max_pixels)
-{
+static size_t frame_get_buffer_size(size_t max_size, size_t max_pixels) {
     return MIN((size_t)(max_size / pixel_size_bytes) * pixel_size_bytes, max_pixels * pixel_size_bytes);
 }
 
-static inline size_t frame_get_space_size()
-{
+static inline size_t frame_get_space_size() {
     return SPACE_BYTES;
 }
 
-static inline int frame_get_buffer_duration(size_t bytes)
-{
+static inline int frame_get_buffer_duration(size_t bytes) {
     return (int)((bytes / slice_size_bytes) * (1e6 / WS2812_BIT_SLICE_CLOCK_HZ));
 }
 
-static void frame_prepare_buffer(uint8_t *buffer, size_t buffer_size)
-{
+static void frame_prepare_buffer(uint8_t *buffer, size_t buffer_size) {
     size_t length = 0;
-    while (length + pixel_size_bytes <= buffer_size)
-    {
-        for (int b = 0; b < 24; b++)
-        {
+    while (length + pixel_size_bytes <= buffer_size) {
+        for (int b = 0; b < 24; b++) {
 #if SOC_I2S_TRANS_SIZE_ALIGN_WORD
             buffer[4] = 0x00;
             buffer[2] = 0xff;
@@ -116,28 +110,23 @@ static void frame_prepare_buffer(uint8_t *buffer, size_t buffer_size)
     }
 }
 
-static IRAM_ATTR void frame_load_strands(frame_t *frame, ws2812_pixel_t *strands[], int num_strands, int max_num_pixels)
-{
+static IRAM_ATTR void frame_load_strands(frame_t *frame, ws2812_pixel_t *strands[], int num_strands, int max_num_pixels) {
     assert(num_strands <= WS2812_MAX_STRANDS);
     frame->remaining_pixels = max_num_pixels;
     frame->num_strands = num_strands;
     // TODO Check whether it's faster to do this pointer updating, or just count the current led-index
-    for (int s = 0; s < num_strands; s++)
-    {
+    for (int s = 0; s < num_strands; s++) {
         frame->strands[s] = strands[s];
     }
 }
 
-static IRAM_ATTR size_t frame_encode(frame_t *frame, uint8_t *buffer, size_t buffer_size)
-{
+static IRAM_ATTR size_t frame_encode(frame_t *frame, uint8_t *buffer, size_t buffer_size) {
     size_t length = 0;
 
     // Fill pixels
-    while (frame->remaining_pixels > 0 && length + pixel_size_bytes <= buffer_size)
-    {
+    while (frame->remaining_pixels > 0 && length + pixel_size_bytes <= buffer_size) {
         uint32_t colors[frame->num_strands];
-        for (int s = 0; s < frame->num_strands; s++)
-        {
+        for (int s = 0; s < frame->num_strands; s++) {
             // TODO This can become simpler if all pixels are stored as one big buff of 3*uint8_t
             // On the other hand, if there's a buffer underrun, it may be better to ensure we always
             // clock out a whole number of leds.
@@ -147,11 +136,9 @@ static IRAM_ATTR size_t frame_encode(frame_t *frame, uint8_t *buffer, size_t buf
         }
         frame->remaining_pixels--;
 
-        for (int b = 23; b >= 0; b--)
-        {
+        for (int b = 23; b >= 0; b--) {
             uint8_t bits = 0;
-            for (int s = 0; s < frame->num_strands; s++)
-            {
+            for (int s = 0; s < frame->num_strands; s++) {
                 bits |= (colors[s] & BIT(b)) ? BIT(s) : 0;
             }
 
@@ -172,32 +159,78 @@ static IRAM_ATTR size_t frame_encode(frame_t *frame, uint8_t *buffer, size_t buf
     return length;
 }
 
-static inline bool frame_is_done(frame_t *frame)
-{
+static inline bool frame_is_done(frame_t *frame) {
     return frame->remaining_pixels == 0;
 }
 
 typedef struct encoder_node_s
 {
     dma_descriptor_t desc;
+
+    /**
+     * Pointer to the allocated buffer 'normally' belonging to this node.
+     * desc's buffer typically points here, except when we've been clocking
+     * out zeroes to latch a frame.
+     */
     uint8_t *buffer;
+
+    /**
+     * 'Cached' copy of the next DMA descriptor. Typically the same as
+     * desc.next, but that can be set to NULL in case of EOF, so this
+     * makes it easy to restore it to the chain.
+     */
+    dma_descriptor_t *next_desc;
 } encoder_node_t;
 
 typedef struct encoder_s
 {
+    /**
+     * Current progress of encoded frame, i.e. pixel bits converted
+     * in encoded line patterns.
+     */
     frame_t frame;
+
+    /**
+     * Pointer to next DMA descriptor to be filled (if it's ownership
+     * is transferred back to the CPU).
+     * Note: if space_bytes = 0, the last frame is done, and next_desc
+     * can then point to the (last) space descriptor, i.e. a node that
+     * was marked being EOF. It will first need to be 'unmarked' as EOF,
+     * before continuing to fill the next node.
+     */
     dma_descriptor_t *next_desc;
+
+    /**
+     * Size in bytes of buffer containing 'spaces' (i.e. zeroes,
+     * to latch the current frame).
+     */
     size_t space_buffer_size;
+
+    /**
+     * Pointer to a buffer full of zeroes, with length space_buffer_size.
+     */
     uint8_t *space_buffer;
+
+    /**
+     * Number of space bytes still remaining to be sent out.
+     * (Note: can be larger than space_buffer_size.)
+     */
     size_t space_bytes;
+
+    /**
+     * Total number of DMA nodes / descriptors available.
+     */
     size_t num_dma_nodes;
+
+    /**
+     * DMA nodes / descriptors.
+     */
     encoder_node_t nodes[];
 } encoder_t;
 
 static void encoder_free(encoder_t *encoder);
 
-static esp_err_t encoder_new(encoder_t **ret_encoder, size_t max_pixels, int max_late_buffers)
-{
+static esp_err_t encoder_new(encoder_t **ret_encoder, size_t max_pixels, int max_late_buffers) {
     esp_err_t ret = ESP_OK;
     encoder_t *encoder = NULL;
 
@@ -220,11 +253,10 @@ static esp_err_t encoder_new(encoder_t **ret_encoder, size_t max_pixels, int max
     ESP_LOGI(TAG, "allocating %zu DMA buffers, %zu bytes per buffer (%uus per buffer)", num_dma_nodes, buffer_size, frame_get_buffer_duration(buffer_size));
 
     encoder->num_dma_nodes = num_dma_nodes;
-    for (int i = 0; i < encoder->num_dma_nodes; i++)
-    {
+    for (int i = 0; i < encoder->num_dma_nodes; i++) {
         encoder_node_t *node = &encoder->nodes[i];
 
-        ESP_LOGD(TAG, "- encoder_node descriptor %d at %p", i, &node->desc);
+        // ESP_LOGD(TAG, "- encoder_node descriptor %d at %p", i, &node->desc);
         node->buffer = heap_caps_calloc(1, buffer_size, MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
         ESP_GOTO_ON_FALSE(node->buffer, ESP_ERR_NO_MEM, err, TAG, "no mem for encoder pixel buffer(s)");
         frame_prepare_buffer(node->buffer, buffer_size);
@@ -237,49 +269,68 @@ static esp_err_t encoder_new(encoder_t **ret_encoder, size_t max_pixels, int max
         node->desc.dw0.err_eof = 0;
         node->desc.dw0.reserved29 = 0;
         node->desc.next = &encoder->nodes[i + 1].desc;
+        node->next_desc = node->desc.next;
     }
     encoder->nodes[encoder->num_dma_nodes - 1].desc.next = &encoder->nodes[0].desc;
+    encoder->nodes[encoder->num_dma_nodes - 1].next_desc = &encoder->nodes[0].desc;
+    encoder->next_desc = &encoder->nodes[0].desc;
     *ret_encoder = encoder;
     return ESP_OK;
 
 err:
-    if (encoder)
-    {
+    if (encoder) {
         encoder_free(encoder);
     }
     return ret;
 }
 
-static void encoder_free(encoder_t *encoder)
-{
-    if (encoder->space_buffer)
-    {
+static void encoder_free(encoder_t *encoder) {
+    if (encoder->space_buffer) {
         free(encoder->space_buffer);
     }
-    for (size_t i = 0; i < encoder->num_dma_nodes; i++)
-    {
-        if (encoder->nodes[i].buffer)
-        {
+    for (size_t i = 0; i < encoder->num_dma_nodes; i++) {
+        if (encoder->nodes[i].buffer) {
             free(encoder->nodes[i].buffer);
         }
     }
     free(encoder);
 }
 
-static IRAM_ATTR void encoder_load_strands(encoder_t *encoder, ws2812_pixel_t *strands[], int num_strands, int max_num_pixels)
-{
+static IRAM_ATTR void encoder_reset(encoder_t *encoder) {
     // Reset all DMA descriptors for loading pixels again, resetting
-    // any previous EOF and latch buffers.
-    for (int i = 0; i < encoder->num_dma_nodes; i++)
-    {
+    // any previous EOF markers and restore circular links.
+    // Note: buffer pointer is re-assigned just before loading.
+    for (int i = 0; i < encoder->num_dma_nodes; i++) {
         encoder_node_t *node = &encoder->nodes[i];
-        node->desc.buffer = node->buffer;
         node->desc.dw0.owner = DMA_DESCRIPTOR_BUFFER_OWNER_CPU;
         node->desc.dw0.suc_eof = 0;
-        node->desc.next = &encoder->nodes[i + 1].desc;
+        node->desc.next = node->next_desc;
     }
-    encoder->nodes[encoder->num_dma_nodes - 1].desc.next = &encoder->nodes[0].desc;
     encoder->next_desc = &encoder->nodes[0].desc;
+}
+
+/**
+ * Determine whether encoder is now done, ready for loading new strands.
+ * Note that DMA descriptors may still be in progress of clocking out.
+ */
+static inline bool encoder_done(encoder_t *encoder) {
+    return encoder->space_bytes == 0;
+}
+
+/**
+ * Determine whether encoder is done and is expecting the next strands
+ * to be loaded right after the space bytes that were just written.
+ */
+static inline bool encoder_can_consecutive_reload(encoder_t *encoder) {
+    return encoder_done(encoder) && encoder->next_desc != NULL;
+}
+
+static IRAM_ATTR void encoder_load_strands(encoder_t *encoder, ws2812_pixel_t *strands[], int num_strands, int max_num_pixels) {
+    // trace("load_strands %p, next_desc=%p", strands, encoder->next_desc);
+    if (!encoder_can_consecutive_reload(encoder)) {
+        // Encoder was EOF before (or at least not 'appendable')
+        encoder_reset(encoder);
+    }
 
     frame_load_strands(&encoder->frame, strands, num_strands, max_num_pixels);
     encoder->space_bytes = frame_get_space_size();
@@ -289,40 +340,46 @@ static IRAM_ATTR void encoder_load_strands(encoder_t *encoder, ws2812_pixel_t *s
  * Fill all available (i.e. CPU-owned) DMA buffers with new
  * content.
  *
+ * @param encoder Encoder instance
+ * @param have_more Pass true when another frame is already to be sent.
+ *                  Allows frames to be enqueued back-to-back. If true is
+ *                  passed, and encoder_can_consecutive_reload() returns true after
+ *                  this call, another frame MUST be loaded.
+ *
  * @returns number of buffers filled.
  */
-static IRAM_ATTR int encoder_update(encoder_t *encoder)
-{
-    int buffers_filled = 0;
+static IRAM_ATTR int encoder_update(encoder_t *encoder, bool have_more) {
 
-    dma_descriptor_t *curr = encoder->next_desc;
-    if (curr == NULL)
-    {
-        return buffers_filled;
+    if (encoder_done(encoder)) {
+        return 0;
     }
 
-    while (curr->dw0.owner == DMA_DESCRIPTOR_BUFFER_OWNER_CPU && !frame_is_done(&encoder->frame))
-    {
+    int buffers_filled = 0;
+    dma_descriptor_t *curr = encoder->next_desc;
+    while (curr->dw0.owner == DMA_DESCRIPTOR_BUFFER_OWNER_CPU && !frame_is_done(&encoder->frame)) {
         buffers_filled++;
+        encoder_node_t *node = __containerof(curr, encoder_node_t, desc);
+        curr->buffer = node->buffer;
         size_t length = frame_encode(&encoder->frame, curr->buffer, curr->dw0.size);
-        // ESP_LOGD(TAG, "--> encode %zu pixel bytes at %p", length, curr);
+        // trace("--> encode %zu pixel bytes at %p", length, curr);
         curr->dw0.length = length;
         curr->dw0.owner = DMA_DESCRIPTOR_BUFFER_OWNER_DMA;
         curr = curr->next;
     }
 
-    while (frame_is_done(&encoder->frame) && encoder->space_bytes > 0 && curr->dw0.owner == DMA_DESCRIPTOR_BUFFER_OWNER_CPU)
-    {
+    while (frame_is_done(&encoder->frame) && encoder->space_bytes > 0 && curr->dw0.owner == DMA_DESCRIPTOR_BUFFER_OWNER_CPU) {
         buffers_filled++;
         size_t length = MIN(encoder->space_bytes, encoder->space_buffer_size);
         curr->dw0.length = length;
         curr->dw0.owner = DMA_DESCRIPTOR_BUFFER_OWNER_DMA;
         curr->buffer = encoder->space_buffer;
-        // ESP_LOGD(TAG, "--> encode %zu space bytes at %p", length, curr);
+        // trace("--> encode %zu space bytes at %p", length, curr);
 
         encoder->space_bytes -= length;
-        if (encoder->space_bytes == 0)
-        {
+
+        // 'Close' the chain if no new frame enqueued yet,
+        // otherwise leave it open.
+        if (encoder->space_bytes == 0 && !have_more) {
             curr->dw0.suc_eof = 1;
             curr->next = NULL;
         }
@@ -330,38 +387,31 @@ static IRAM_ATTR int encoder_update(encoder_t *encoder)
         curr = curr->next;
     }
     encoder->next_desc = curr;
-    // if (curr == NULL)
-    // {
-    //     ESP_LOGD(TAG, "--> encode done");
+    // if (encoder_done(encoder)) {
+    //     trace("--> encode done");
     // }
     return buffers_filled;
 }
 
-static dma_descriptor_t *encoder_get_dma_desc(encoder_t *encoder)
-{
+static dma_descriptor_t *encoder_get_dma_desc(encoder_t *encoder) {
     return &encoder->nodes[0].desc;
 }
 
-static void strands_free(ws2812_strands_t strands)
-{
+static void strands_free(ws2812_strands_t strands) {
     free(strands);
 }
 
-static ws2812_strands_t strands_alloc(int num_strands, int max_pixels)
-{
+static ws2812_strands_t strands_alloc(int num_strands, int max_pixels) {
     size_t strands_size = num_strands * sizeof(ws2812_strands_t);
     ws2812_strands_t strands = heap_caps_calloc(1, strands_size, MALLOC_CAP_INTERNAL);
-    if (strands == NULL)
-    {
+    if (strands == NULL) {
         return NULL;
     }
 
     // Perform multiple allocs, might succeed more easily then a single contiguous chunk
-    for (int s = 0; s < num_strands; s++)
-    {
+    for (int s = 0; s < num_strands; s++) {
         strands[s] = heap_caps_calloc(max_pixels, sizeof(ws2812_pixel_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-        if (strands[s] == NULL)
-        {
+        if (strands[s] == NULL) {
             strands_free(strands);
             return NULL;
         }
@@ -384,19 +434,35 @@ typedef struct ws2812_bus_s
     QueueHandle_t strands_queue; // Available strands (for filling by app, then enqueued)
 
     volatile int max_late_buffers;
+    volatile int late_buffer_occurrences;
     volatile int dma_underrun_errors;
+
     /**
      * Highest measured interrupt delta time so far, in us.
      * Note: this is the 'raw' time between interrupts, including
      * the expected time it takes to clock out one DMA descriptor.
      */
-    volatile uint32_t max_int_time;
+    volatile uint32_t max_int_delta;
+
+    /**
+     * Total time spent inside interrupt handler.
+     */
+    volatile uint32_t total_interrupt_time;
+
+    /**
+     * Number of frames that could be loaded directly
+     * after each other, without waiting for DMA descriptors
+     * from previous frame to drain.
+     * If this number equals the frame rate, it's most
+     * efficient.
+     */
+    volatile uint32_t consecutive_frames;
 
     /**
      * Timestamp of last interrupt exit in us.
      * Used to compute interrupt timing.
      */
-    int64_t last_int_ts;
+    uint32_t last_int_ts;
 
     encoder_handle encoder;
     int num_strands;
@@ -404,82 +470,60 @@ typedef struct ws2812_bus_s
     ws2812_strands_t strands; // In-progress strands, or NULL if none
 } ws2812_bus_t;
 
-static IRAM_ATTR void ws2812_isr_handler(void *args)
-{
+static IRAM_ATTR void ws2812_isr_handler(void *args) {
+    uint32_t entry_time = esp_timer_get_time();
     ws2812_bus_t *bus = (ws2812_bus_t *)args;
     encoder_t *encoder = bus->encoder;
     BaseType_t high_task_woken = pdFALSE;
-    bool need_yield = false;
     uint32_t intr_status = i2s_ll_get_intr_status(bus->hal.dev);
 
-    static int skips = 0;
-
-    if (intr_status & I2S_LL_EVENT_TX_DSCR_ERR)
-    {
-        bus->dma_underrun_errors++;
-        uint32_t int_time = (uint32_t)(esp_timer_get_time() - bus->last_int_ts);
-        if (int_time > bus->max_int_time)
-        {
-            bus->max_int_time = int_time;
+    if (intr_status & I2S_LL_EVENT_TX_DSCR_ERR) {
+        uint32_t delta_time = entry_time - bus->last_int_ts;
+        if (delta_time > bus->max_int_delta) {
+            bus->max_int_delta = delta_time;
         }
+        // trace("!! DMA error intr_status=%lx", intr_status);
+        // trace_enable(false);
+        bus->dma_underrun_errors++;
 
         i2s_ll_clear_intr_status(bus->hal.dev, WS2812_INTERRUPT_MASK);
 
         // Force latch to allow clean restart on next frame
         // This latch generates the usual TX_EOF to close the
         // current frame.
-        encoder_load_strands(encoder, bus->strands, bus->num_strands, 0);
-        encoder_update(encoder);
+        encoder_reset(encoder);
+        encoder_load_strands(encoder, NULL, 0, 0);
+        encoder_update(encoder, false);
 
         i2s_ll_tx_stop(bus->hal.dev);
-        i2s_ll_tx_reset(bus->hal.dev); // reset TX engine first
+        i2s_ll_tx_reset(bus->hal.dev);
         i2s_ll_start_out_link(bus->hal.dev);
         esp_rom_delay_us(1);
         i2s_ll_tx_start(bus->hal.dev);
-    }
-    if (intr_status & I2S_LL_EVENT_TX_EOF)
-    {
+    } else if (intr_status & I2S_LL_EVENT_TX_EOF) {
         esp_intr_disable(bus->intr);
 
-        if (bus->strands)
-        {
-            if (bus->pm_lock)
-            {
+        if (bus->strands) {
+            if (bus->pm_lock) {
                 esp_pm_lock_release(bus->pm_lock);
             }
-            high_task_woken = pdFALSE;
-            if (xQueueSendFromISR(bus->strands_queue, &bus->strands, &high_task_woken) == pdTRUE)
-            {
-                if (high_task_woken == pdTRUE)
-                {
-                    need_yield = true;
-                }
-            }
+            xQueueSendFromISR(bus->strands_queue, &bus->strands, &high_task_woken);
         }
 
         bus->strands = NULL;
-        high_task_woken = pdFALSE;
-        if (xQueueReceiveFromISR(bus->send_queue, &bus->strands, &high_task_woken) == pdTRUE)
-        {
-            if (high_task_woken == pdTRUE)
-            {
-                need_yield = true;
-            }
-        }
+        xQueueReceiveFromISR(bus->send_queue, &bus->strands, &high_task_woken);
 
-        if (bus->strands)
-        {
+        if (bus->strands) {
+            // trace("DMA EOF intr_status=%lx, reload", intr_status);
             i2s_ll_clear_intr_status(bus->hal.dev, WS2812_INTERRUPT_MASK);
             encoder_load_strands(encoder, bus->strands, bus->num_strands, bus->max_num_pixels);
-            encoder_update(encoder);
+            encoder_update(encoder, false);
 
             i2s_ll_tx_stop(bus->hal.dev);
-            i2s_ll_tx_reset(bus->hal.dev); // reset TX engine first
+            i2s_ll_tx_reset(bus->hal.dev);
             i2s_ll_start_out_link(bus->hal.dev);
 
-            skips = 0;
-            if (bus->pm_lock)
-            {
+            if (bus->pm_lock) {
                 esp_pm_lock_acquire(bus->pm_lock);
             }
             esp_intr_enable(bus->intr);
@@ -488,45 +532,49 @@ static IRAM_ATTR void ws2812_isr_handler(void *args)
             // Only really needed if pixel clock is set very high, but let's be sure.
             esp_rom_delay_us(1);
             i2s_ll_tx_start(bus->hal.dev);
+        } else {
+            // trace("DMA EOF intr_status=%lx, done", intr_status);
         }
-    }
-    if (intr_status & I2S_LL_EVENT_TX_DONE)
-    {
-        int64_t int_time = esp_timer_get_time() - bus->last_int_ts;
-        if (int_time > bus->max_int_time)
-        {
-            bus->max_int_time = int_time;
-        }
+    } else if (intr_status & I2S_LL_EVENT_TX_DONE) {
         i2s_ll_clear_intr_status(bus->hal.dev, I2S_LL_EVENT_TX_DONE);
         int buffers_filled = 0;
-        if (skips > 0)
-        {
-            skips--;
-            return;
+        bool have_more = uxQueueMessagesWaitingFromISR(bus->send_queue) > 0;
+        // trace("DMA done intr_status=%lx, have_more=%d", intr_status, have_more);
+        buffers_filled = encoder_update(encoder, have_more);
+        if (have_more && encoder_can_consecutive_reload(encoder)) {
+            bus->consecutive_frames++;
+            ws2812_strands_t strands;
+            assert(xQueueReceiveFromISR(bus->send_queue, &strands, &high_task_woken) == pdTRUE);
+            assert(xQueueSendFromISR(bus->strands_queue, &bus->strands, &high_task_woken) == pdTRUE);
+            bus->strands = strands;
+            // trace("-> reload consecutive");
+            encoder_load_strands(encoder, bus->strands, bus->num_strands, bus->max_num_pixels);
+            encoder_update(encoder, false);
         }
-        else
-        {
-            buffers_filled = encoder_update(encoder);
+        uint32_t delta_time = entry_time - bus->last_int_ts;
+        if (delta_time > bus->max_int_delta) {
+            bus->max_int_delta = delta_time;
         }
-        if (buffers_filled > 1)
-        {
+        if (buffers_filled > 1) {
+            // trace("!! late buffers_filled=%d", buffers_filled);
+            // trace_enable(false);
             int late_buffers = buffers_filled - 1;
-            if (late_buffers > bus->max_late_buffers)
-            {
+            bus->late_buffer_occurrences++;
+            if (late_buffers > bus->max_late_buffers) {
                 bus->max_late_buffers = late_buffers;
             }
         }
     }
-    bus->last_int_ts = esp_timer_get_time();
+    bus->last_int_ts = (uint32_t)esp_timer_get_time();
+    uint32_t interrupt_time = bus->last_int_ts - entry_time;
+    bus->total_interrupt_time += interrupt_time;
 
-    if (need_yield)
-    {
+    if (high_task_woken) {
         portYIELD_FROM_ISR();
     }
 }
 
-esp_err_t ws2812_new(ws2812_bus_config_t *config, ws2812_bus_handle_t *ret_bus)
-{
+esp_err_t ws2812_new(ws2812_bus_config_t *config, ws2812_bus_handle_t *ret_bus) {
     esp_err_t ret = ESP_OK;
     ws2812_bus_t *bus = NULL;
 
@@ -538,10 +586,8 @@ esp_err_t ws2812_new(ws2812_bus_config_t *config, ws2812_bus_handle_t *ret_bus)
     // Allocate encoder
     bus->num_strands = config->num_strands;
     int max_pixels = 0;
-    for (int s = 0; s < config->num_strands; s++)
-    {
-        if (config->num_pixels[s] > max_pixels)
-        {
+    for (int s = 0; s < config->num_strands; s++) {
+        if (config->num_pixels[s] > max_pixels) {
             max_pixels = config->num_pixels[s];
         }
     }
@@ -552,10 +598,8 @@ esp_err_t ws2812_new(ws2812_bus_config_t *config, ws2812_bus_handle_t *ret_bus)
 
     // Allocate and initialize I2S peripheral
     int bus_id = -1;
-    for (int i = 0; i < SOC_LCD_I80_BUSES; i++)
-    {
-        if (i2s_platform_acquire_occupation(i, "ws2812") == ESP_OK)
-        {
+    for (int i = 0; i < SOC_LCD_I80_BUSES; i++) {
+        if (i2s_platform_acquire_occupation(i, "ws2812") == ESP_OK) {
             bus_id = i;
             break;
         }
@@ -610,8 +654,8 @@ esp_err_t ws2812_new(ws2812_bus_config_t *config, ws2812_bus_handle_t *ret_bus)
     // TODO Check whether we want to run at higher interrupt level
     int isr_flags = ESP_INTR_FLAG_INTRDISABLED | ESP_INTR_FLAG_LOWMED | ESP_INTR_FLAG_IRAM;
     ret = esp_intr_alloc_intrstatus(lcd_periph_signals.buses[bus->bus_id].irq_id, isr_flags,
-                                    (uint32_t)i2s_ll_get_intr_status_reg(bus->hal.dev),
-                                    WS2812_INTERRUPT_MASK, ws2812_isr_handler, bus, &bus->intr);
+        (uint32_t)i2s_ll_get_intr_status_reg(bus->hal.dev),
+        WS2812_INTERRUPT_MASK, ws2812_isr_handler, bus, &bus->intr);
     ESP_GOTO_ON_ERROR(ret, err, TAG, "ws2812_new: install interrupt failed");
 
     // ret = esp_intr_alloc_intrstatus(lcd_periph_signals.buses[bus->bus_id].irq_id, isr_flags,
@@ -671,8 +715,7 @@ esp_err_t ws2812_new(ws2812_bus_config_t *config, ws2812_bus_handle_t *ret_bus)
     // Only really needed if pixel clock is set very high, but let's be sure.
     esp_rom_delay_us(1);
     i2s_ll_tx_start(bus->hal.dev);
-    while (!(i2s_ll_get_intr_status(bus->hal.dev) & I2S_LL_EVENT_TX_EOF))
-    {
+    while (!(i2s_ll_get_intr_status(bus->hal.dev) & I2S_LL_EVENT_TX_EOF)) {
     }
     // Clear all interrupt flags, except TX_EOF
     i2s_ll_clear_intr_status(bus->hal.dev, WS2812_INTERRUPT_MASK & ~I2S_LL_EVENT_TX_EOF);
@@ -681,16 +724,13 @@ esp_err_t ws2812_new(ws2812_bus_config_t *config, ws2812_bus_handle_t *ret_bus)
     i2s_ll_set_out_link_addr(bus->hal.dev, (uint32_t)encoder_get_dma_desc(bus->encoder));
 
     // Configure GPIO pins
-    for (int i = 0; i < config->num_strands; i++)
-    {
-        if (config->gpio_pins[i] < 0)
-        {
+    for (int i = 0; i < config->num_strands; i++) {
+        if (config->gpio_pins[i] < 0) {
             return ESP_ERR_INVALID_ARG;
         }
     }
 
-    for (int s = 0; s < config->num_strands; s++)
-    {
+    for (int s = 0; s < config->num_strands; s++) {
         int pin = config->gpio_pins[s];
         ESP_GOTO_ON_ERROR(
             gpio_set_direction(pin, GPIO_MODE_OUTPUT),
@@ -709,8 +749,7 @@ esp_err_t ws2812_new(ws2812_bus_config_t *config, ws2812_bus_handle_t *ret_bus)
     bus->strands_queue = xQueueCreate(WS2812_STRANDS_QUEUE_LENGTH, sizeof(ws2812_strands_t));
     ESP_GOTO_ON_FALSE(bus->strands_queue, ESP_ERR_NO_MEM, err, TAG, "ws2812_new: create strands queue failed");
 
-    for (int f = 0; f < WS2812_STRANDS_QUEUE_LENGTH; f++)
-    {
+    for (int f = 0; f < WS2812_STRANDS_QUEUE_LENGTH; f++) {
         ws2812_strands_t strands = strands_alloc(bus->num_strands, bus->max_num_pixels);
         ESP_GOTO_ON_FALSE(strands, ESP_ERR_NO_MEM, err, TAG, "ws2812_new: cannot allocate memory for strands frame %d", f);
         xQueueSend(bus->strands_queue, &strands, 0);
@@ -722,87 +761,82 @@ esp_err_t ws2812_new(ws2812_bus_config_t *config, ws2812_bus_handle_t *ret_bus)
     return ESP_OK;
 
 err:
-    if (bus)
-    {
+    if (bus) {
         ws2812_free(bus);
     }
     return ret;
 }
 
-void ws2812_free(ws2812_bus_handle_t bus)
-{
-    if (bus->strands_queue)
-    {
+void ws2812_free(ws2812_bus_handle_t bus) {
+    if (bus->strands_queue) {
         // Wait for each of the strands to become available
         // and consume them (which means we'll drain all
         // transmissions).
-        for (int f = 0; f < WS2812_STRANDS_QUEUE_LENGTH; f++)
-        {
+        for (int f = 0; f < WS2812_STRANDS_QUEUE_LENGTH; f++) {
             strands_free(ws2812_get_strands(bus));
         }
         vQueueDelete(bus->strands_queue);
     }
-    if (bus->send_queue)
-    {
+    if (bus->send_queue) {
         vQueueDelete(bus->send_queue);
     }
-    if (bus->intr)
-    {
+    if (bus->intr) {
         esp_intr_free(bus->intr);
     }
-    if (bus->bus_id >= 0)
-    {
+    if (bus->bus_id >= 0) {
         i2s_platform_release_occupation(bus->bus_id);
     }
-    if (bus->pm_lock)
-    {
+    if (bus->pm_lock) {
         esp_pm_lock_delete(bus->pm_lock);
     }
-    if (bus->encoder)
-    {
+    if (bus->encoder) {
         encoder_free(bus->encoder);
     }
     free(bus);
 }
 
-ws2812_strands_t ws2812_get_strands(ws2812_bus_handle_t bus)
-{
+ws2812_strands_t ws2812_get_strands(ws2812_bus_handle_t bus) {
     ws2812_strands_t strands;
     assert(xQueueReceive(bus->strands_queue, &strands, portMAX_DELAY) == pdTRUE);
+    // trace("get_strands %p", strands);
     return strands;
 }
 
-void ws2812_unget_strands(ws2812_bus_handle_t bus, ws2812_strands_t strands)
-{
+void ws2812_unget_strands(ws2812_bus_handle_t bus, ws2812_strands_t strands) {
     assert(strands);
     assert(strands != bus->strands);
+    // trace("unget_strands %p", strands);
     assert(xQueueSendToFront(bus->strands_queue, &strands, 0) == pdTRUE);
 }
 
-void ws2812_enqueue_strands(ws2812_bus_handle_t bus, ws2812_strands_t strands)
-{
+void ws2812_enqueue_strands(ws2812_bus_handle_t bus, ws2812_strands_t strands) {
     // Some very basic sanity checks. Could be made smarter to properly
     // check whether these strands are not already enqueued.
     assert(strands);
     assert(strands != bus->strands);
+    // trace("enqueue_strands %p", strands);
     assert(xQueueSend(bus->send_queue, &strands, portMAX_DELAY) == pdTRUE);
     esp_intr_enable(bus->intr);
 }
 
-void ws2812_get_stats(ws2812_bus_handle_t bus, ws2812_stats_t *ret_stats)
-{
-    ret_stats->max_int_time = bus->max_int_time;
+void ws2812_get_stats(ws2812_bus_handle_t bus, ws2812_stats_t *ret_stats) {
+    ret_stats->max_int_delta = bus->max_int_delta;
+    ret_stats->total_interrupt_time = bus->total_interrupt_time;
     ret_stats->max_late_buffers = bus->max_late_buffers;
+    ret_stats->late_buffer_occurrences = bus->late_buffer_occurrences;
     ret_stats->dma_underrun_errors = bus->dma_underrun_errors;
+    ret_stats->consecutive_frames = bus->consecutive_frames;
     size_t max_buffer_size = encoder_get_dma_desc(bus->encoder)->dw0.size;
     int buffer_duration = frame_get_buffer_duration(max_buffer_size);
-    int computed_late_buffers = (bus->max_int_time - buffer_duration + buffer_duration - 1) / buffer_duration;
+    int computed_late_buffers = (bus->max_int_delta - buffer_duration + buffer_duration - 1) / buffer_duration;
     ret_stats->needed_late_buffers = MAX(bus->max_late_buffers, computed_late_buffers);
 }
 
-void ws2812_reset_stats(ws2812_bus_handle_t bus)
-{
-    bus->max_int_time = 0;
+void ws2812_reset_stats(ws2812_bus_handle_t bus) {
+    bus->max_int_delta = 0;
+    bus->total_interrupt_time = 0;
+    bus->late_buffer_occurrences = 0;
     bus->max_late_buffers = 0;
     bus->dma_underrun_errors = 0;
+    bus->consecutive_frames = 0;
 }
