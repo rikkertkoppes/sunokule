@@ -252,9 +252,15 @@ static void led_strip_task(void *pvParameters) {
         .num_strands = num_strands,
         .max_late_buffers = 2,
     };
-    for (int s = 0; s < num_strands; s++) {
+    for (int s = 0; s < config.num_strands; s++) {
         config.num_pixels[s] = num_pixels[s];
         config.gpio_pins[s] = gpio_pins[s];
+    }
+    // Reduce actual number of in-use strands by ignoring last unused channels
+    while (config.num_strands > 0 && (config.num_pixels[config.num_strands - 1] == 0 || config.gpio_pins[config.num_strands - 1 ] < 0)) {
+        config.num_strands--;
+    }
+    for (int s = 0; s < config.num_strands; s++) {
         ESP_LOGI(TAG, "configure %i leds on pin %i", num_pixels[s], gpio_pins[s]);
     }
     ws2812_bus_handle_t bus = NULL;

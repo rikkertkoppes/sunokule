@@ -53,6 +53,7 @@ typedef struct encoder_s *encoder_handle;
 typedef struct frame_s
 {
     int16_t remaining_pixels; // in each strand
+    int16_t index;
     int16_t num_strands;
     ws2812_pixel_t *strands[WS2812_MAX_STRANDS];
 } frame_t;
@@ -114,7 +115,7 @@ static IRAM_ATTR void frame_load_strands(frame_t *frame, ws2812_pixel_t *strands
     assert(num_strands <= WS2812_MAX_STRANDS);
     frame->remaining_pixels = max_num_pixels;
     frame->num_strands = num_strands;
-    // TODO Check whether it's faster to do this pointer updating, or just count the current led-index
+    frame->index = 0;
     for (int s = 0; s < num_strands; s++) {
         frame->strands[s] = strands[s];
     }
@@ -125,16 +126,16 @@ static IRAM_ATTR size_t frame_encode(frame_t *frame, uint8_t *buffer, size_t buf
 
     // Fill pixels
     while (frame->remaining_pixels > 0 && length + pixel_size_bytes <= buffer_size) {
+        int index = frame->index++;
+        frame->remaining_pixels--;
         uint32_t colors[frame->num_strands];
         for (int s = 0; s < frame->num_strands; s++) {
             // TODO This can become simpler if all pixels are stored as one big buff of 3*uint8_t
             // On the other hand, if there's a buffer underrun, it may be better to ensure we always
             // clock out a whole number of leds.
             // Still, even then easier if we can just cast the leds from struct.
-            colors[s] = (uint32_t)frame->strands[s]->blue | ((uint32_t)frame->strands[s]->red << 8) | ((uint32_t)frame->strands[s]->green << 16);
-            frame->strands[s]++;
+            colors[s] = (uint32_t)frame->strands[s][index].blue | ((uint32_t)frame->strands[s][index].red << 8) | ((uint32_t)frame->strands[s][index].green << 16);
         }
-        frame->remaining_pixels--;
 
         for (int b = 23; b >= 0; b--) {
             uint8_t bits = 0;
