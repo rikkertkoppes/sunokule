@@ -85,12 +85,22 @@ typedef struct ws2812_stats_s
      * to be filled in one interrupt.
      *
      * If this number is higher than one, it means the interrupt
-     * handler was delayed.
+     * handler was delayed. No frame was corrupted, unless dma_underrun_errors
+     * is larger than zero.
      *
      * This number will (cannot) be higher than ws2812_bus_config_t::max_late_buffers
      * (it will cause a dma_underrun_error in that case).
      */
     int max_late_buffers;
+
+    /**
+     * Number of times buffers were late.
+     *
+     * If this number is higher than one, it means the interrupt
+     * handler was delayed. No frame was corrupted, unless dma_underrun_errors
+     * is larger than zero.
+     */
+    int late_buffer_occurrences;
 
     /**
      * Number of DMA underrun errors that occurred so far.
@@ -129,7 +139,21 @@ typedef struct ws2812_stats_s
      * This is a low-level statistic; you probably want to look
      * at needed_late_buffers instead.
      */
-    uint32_t max_int_time;
+    uint32_t max_int_delta;
+
+    /**
+     * Total amount of time spent inside interrupt handler (in us).
+     */
+    uint32_t total_interrupt_time;
+
+    /**
+     * Number of frames that could be loaded directly
+     * after each other, without waiting for DMA descriptors
+     * from previous frame to drain.
+     * If this number equals the frame rate, it's most
+     * efficient.
+     */
+    uint32_t consecutive_frames;
 } ws2812_stats_t;
 
 /**

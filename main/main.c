@@ -276,13 +276,23 @@ static void ws2812_stats_printer_task(void *arg) {
         vTaskDelay(pdMS_TO_TICKS(1000));
         ws2812_stats_t stats = {0};
         ws2812_get_stats(bus, &stats);
-        if (stats.max_late_buffers > 0 || stats.dma_underrun_errors > 0) {
-            // ws2812_reset_stats(bus);
+        ws2812_reset_stats(bus);
+        // Allow one buffer to be late, as this can easily happen when the last buffer
+        // of a frame contains a very small number of bytes.
+        if (stats.max_late_buffers > 1 || stats.dma_underrun_errors > 0) {
             ESP_LOGI(
                 TAG,
-                "max_late_buffers=%d, dma_underrun_errors=%d, max_int_time=%" PRIu32 ", needed_late_buffers=%d",
-                stats.max_late_buffers,
-                stats.dma_underrun_errors, stats.max_int_time, stats.needed_late_buffers);
+                "late_buffer_occ=%d, max_late_buffers=%d, dma_underruns=%d, max_int_delta=%" PRIu32 ", total_int_time=%" PRIu32 ", needed_late_buffers=%d, consec_frames=%"PRIu32,
+                stats.late_buffer_occurrences, stats.max_late_buffers,
+                stats.dma_underrun_errors, stats.max_int_delta, stats.total_interrupt_time,
+                stats.needed_late_buffers, stats.consecutive_frames
+            );
+        } else {
+            ESP_LOGI(
+                TAG,
+                "consecutive_frames=%"PRIu32", total_int_time=%"PRIu32,
+                stats.consecutive_frames, stats.total_interrupt_time
+            );
         }
     }
 }
@@ -300,7 +310,7 @@ static void led_strip_task(void *pvParameters) {
     }
     ws2812_bus_handle_t bus = NULL;
     ESP_ERROR_CHECK(ws2812_new(&config, &bus));
-    xTaskCreate(ws2812_stats_printer_task, "ws2812_stats_printer", 2048, (void *)bus, 2, NULL);
+    xTaskCreatePinnedToCore(ws2812_stats_printer_task, "ws2812_stats_printer", 2048, (void *)bus, 2, NULL, 0);
 
     float tick = 0.001;
 
