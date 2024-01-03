@@ -174,6 +174,18 @@ void gradient(byte *mem, byte *prog, byte *counter) {
     setFloat(mem, _result + 2, b);
 }
 
+void node_smoothstep(byte *mem, byte *prog, byte *counter) {
+    byte _x = data_fetch(mem, prog, counter);
+    byte _a = data_fetch(mem, prog, counter);
+    byte _b = data_fetch(mem, prog, counter);
+    byte _result = data_fetch(mem, prog, counter);
+    float x = getFloat(mem, _x);
+    float a = getFloat(mem, _a);
+    float b = getFloat(mem, _b);
+    float value = smoothstep(a, b, x);
+    setFloat(mem, _result, value);
+}
+
 void waveform(byte *mem, byte *prog, byte *counter) {
     byte _period = data_fetch(mem, prog, counter);
     byte _speed = data_fetch(mem, prog, counter);
@@ -503,7 +515,9 @@ void execute(byte *mem, byte *prog, byte *counter) {
                 mapRange(mem, prog, counter);
                 break;
             case 15:
-                dmxValue(mem, prog, counter);
+                break;
+            case 17:
+                node_smoothstep(mem, prog, counter);
                 break;
             case 18:
                 combineRGB(mem, prog, counter);
