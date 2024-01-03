@@ -4,7 +4,7 @@
 
 typedef unsigned char byte;
 
-byte _scan2[] = {
+byte default_shader[] = {
     1,  // version
     3,  // shader id
 
@@ -135,9 +135,6 @@ esp_err_t readShader(byte* data) {
             nvs_close(my_handle);
             return err;
         }
-    } else {
-        // TODO: return default
-        memcpy(data, _scan2, sizeof(_scan2));
     }
     return ESP_OK;
 }

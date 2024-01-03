@@ -276,6 +276,9 @@ static void led_strip_task(void *pvParameters) {
     // uint16_t start_rgb = 0;
     uint32_t time = clock();
 
+    // load default shader
+    memcpy(shader, default_shader, sizeof(default_shader));
+
     // get shader from NVS
     readShader(shader);
 
