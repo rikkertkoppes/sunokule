@@ -97,7 +97,7 @@ void node_condition(byte *mem, byte *prog, byte *counter) {
     byte _ref = data_fetch(mem, prog, counter);
     float condition = getFloat(mem, _condition);
     // ESP_LOGI("condition", "condition %f", condition);
-    if (condition) {
+    if (condition > 0.5) {
         // just proceed to next instruction
     } else {
         // jump to ref
