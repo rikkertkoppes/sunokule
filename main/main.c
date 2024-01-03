@@ -97,10 +97,10 @@ void frame(ws2812_strands_t strands, byte *shader, float clk) {
             // byte version = shader[0];
             // byte id = shader[1];
 
-            // uint16_t memStart = getUint16(shader, 2);
-            uint16_t memSize = getUint16(shader, 4);
-            uint16_t progStart = getUint16(shader, 6);
-            // uint16_t progSize = getUint16(shader, 8);
+            // uint16_t memStart = getUint16(shader, MEM_START_OFFSET);
+            uint16_t memSize = getUint16(shader, MEM_SIZE_OFFSET);
+            uint16_t progStart = getUint16(shader, PROG_START_OFFSET);
+            // uint16_t progSize = getUint16(shader, PROG_SIZE_OFFSET);
 
             uint16_t mem_end = memSize / 4;
 
@@ -140,7 +140,8 @@ static void fps_task(void *pvParameters) {
     while (true) {
         // dump_tasks();
 
-        ESP_LOGI(TAG, "fps %i, power %i", framecount, power);
+        float master = getMaster(mem, shader);
+        ESP_LOGI(TAG, "fps %i, power %i, master %f", framecount, power, master);
         char data[80];
         sprintf(data, "{\"fps\":%i,\"power\":%i}", framecount, power);
         ws_broadcast(data);

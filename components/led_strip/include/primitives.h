@@ -9,6 +9,12 @@
 
 #define DMX_OFFSET 512
 
+// see shaderformat.md
+#define MEM_START_OFFSET 2
+#define MEM_SIZE_OFFSET 4
+#define PROG_START_OFFSET 6
+#define PROG_SIZE_OFFSET 8
+
 typedef unsigned char byte;
 
 // getters and setters into mem
@@ -36,14 +42,25 @@ uint8_t getDMX(byte *mem, byte ptr) {
     return i;
 }
 
+float getMaster(byte *mem, byte *shader) {
+    byte prog_start = getUint16(shader, PROG_START_OFFSET);
+    byte prog_size = getUint16(shader, PROG_SIZE_OFFSET);
+    // master value is the first param of the end program instruction
+    // end program instruction has 2 params and is the last instruction of the program
+    // so the master value is referenced by second to last byte of the program
+    byte _master = *(shader + prog_start + prog_size - 2);
+    float m = getFloat(mem, _master);
+    return m;
+}
+
 void setFloat(byte *mem, byte ptr, float f) {
     memcpy(mem + ptr * 4, (byte *)(&f), 4);
 }
 
 void setMem(byte *mem, byte *shader) {
     // get mem start and size from shader
-    uint16_t memstart = getUint16(shader, 2);
-    uint16_t memsize = getUint16(shader, 4);
+    uint16_t memstart = getUint16(shader, MEM_START_OFFSET);
+    uint16_t memsize = getUint16(shader, MEM_SIZE_OFFSET);
     memcpy(mem, shader + memstart, memsize);
 }
 
