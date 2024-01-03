@@ -179,29 +179,30 @@ static void params_task(void *pvParameters) {
             printf("\n");
             uint8_t datatype = data[0];
             switch (datatype) {
-
-                case 0: // shader packet
+                case 0:  // shader packet
+                    // second byte is data size
+                    uint8_t datasize = data[1];
                     // store shader in NVS
-                    saveShader(data + 2, data[1]);
+                    saveShader(data + 2, datasize);
                     // reset shader time
                     clk = 0;
-                    setShader(shader, data + 2, data[1]);
+                    setShader(shader, data + 2, datasize);
                     // reinitialize working memory
                     setMem(mem, shader);
                     break;
 
-                case 1: // params packet
+                case 1:  // params packet
                     setParams(data + 1);
                     break;
 
-                case 2: // power on/ off packet
+                case 2:  // power on/ off packet
                     // reset shader time
                     clk = 0;
                     power = data[1];
                     savePowerState(power);
                     break;
 
-                case 3: // dmx packet
+                case 3:  // dmx packet
                     // put dmx data into memory
                     setDMX(mem, data);
                     printf("%i %i %i \n", getDMX(mem, 0), getDMX(mem, 1), getDMX(mem, 2));
