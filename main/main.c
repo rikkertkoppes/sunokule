@@ -66,9 +66,9 @@ static const int num_strands = sizeof(num_pixels) / sizeof(num_pixels[0]);
  */
 void set_pixel_rgb(ws2812_pixel_t *pixels, u_int32_t index, float r, float g, float b) {
     // remap r,g,b values to suppress low values
-    // r = r * r * r;
-    // g = g * g * g;
-    // b = b * b * b;
+    r = r * r;  // * r;
+    g = g * g;  //* g;
+    b = b * b;  //* b;
 
     r = clamp(r, 0, 1);
     g = clamp(g, 0, 1);
