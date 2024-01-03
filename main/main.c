@@ -92,21 +92,24 @@ int framecount = 0;
 // frame renderer, by using a shader and incoming data
 void frame(ws2812_strands_t strands, byte *shader, float clk) {
     int j = 0;
+    // byte version = shader[VERSION_OFFSET];
+    // byte id = shader[ID_OFFSET];
+    // uint16_t memStart = getUint16(shader, MEM_START_OFFSET);
+    uint16_t memSize = getUint16(shader, MEM_SIZE_OFFSET);
+    uint16_t progStart = getUint16(shader, PROG_START_OFFSET);
+    // uint16_t progSize = getUint16(shader, PROG_SIZE_OFFSET);
+
+    uint16_t mem_end = memSize / 4;
+
+    // set params
+    // copy time into end of memory
+    setFloat(mem, mem_end, clk);
+
+    // start of program code
+    byte *prog = shader + progStart;
+
     for (int s = 0; s < num_strands; s++) {
         for (int p = 0; p < num_pixels[s]; p++, j++) {
-            // byte version = shader[0];
-            // byte id = shader[1];
-
-            // uint16_t memStart = getUint16(shader, MEM_START_OFFSET);
-            uint16_t memSize = getUint16(shader, MEM_SIZE_OFFSET);
-            uint16_t progStart = getUint16(shader, PROG_START_OFFSET);
-            // uint16_t progSize = getUint16(shader, PROG_SIZE_OFFSET);
-
-            uint16_t mem_end = memSize / 4;
-
-            // set params
-            // copy time into end of memory
-            setFloat(mem, mem_end, clk);
             // copy current led index into memory
             setFloat(mem, mem_end + 1, (float)j);
             // copy current led mapping directly from in memory
@@ -114,7 +117,6 @@ void frame(ws2812_strands_t strands, byte *shader, float clk) {
 
             // execute
             byte counter = 0;
-            byte *prog = shader + progStart;
             execute(mem, prog, &counter);
 
             // program counter is currently at the end program instruction
@@ -129,7 +131,10 @@ void frame(ws2812_strands_t strands, byte *shader, float clk) {
             float g = m * getFloat(mem, _result + 1);
             float b = m * getFloat(mem, _result + 2);
 
-            // ESP_LOGI(TAG, "counter %i, rgb %f %f %f", counter, r, g, b);
+            // if (j == 0) {
+            //     ESP_LOGI(TAG, "ptr %i, master %f", _master, m);
+            //     ESP_LOGI(TAG, "counter %i, rgb %f %f %f", counter, r, g, b);
+            // }
             set_pixel_rgb(strands[s], p, r, g, b);
         }
     }

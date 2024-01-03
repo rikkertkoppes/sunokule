@@ -10,6 +10,8 @@
 #define DMX_OFFSET 512
 
 // see shaderformat.md
+#define VERSION_OFFSET 0
+#define ID_OFFSET 1
 #define MEM_START_OFFSET 2
 #define MEM_SIZE_OFFSET 4
 #define PROG_START_OFFSET 6
