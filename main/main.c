@@ -294,7 +294,9 @@ static void led_strip_task(void *pvParameters) {
         clk += (float)elapsed * tick;
 
         ws2812_strands_t strands = ws2812_get_strands(bus);
-        if (power && (master > 0)) {
+        if (power) {
+            // TODO: this does not work correctly when master value is a node
+            // if (power && (master > 0)) {
             frame(strands, shader, clk);
         } else {
             clear_strands(strands);
