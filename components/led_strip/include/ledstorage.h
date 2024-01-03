@@ -54,7 +54,7 @@ esp_err_t savePowerState(byte state) {
     err = nvs_open(STORAGE_NAMESPACE, NVS_READWRITE, &my_handle);
     if (err != ESP_OK) return err;
 
-    // Write shader
+    // Write power state
     err = nvs_set_u8(my_handle, "power", state);
 
     if (err != ESP_OK) {
@@ -88,7 +88,7 @@ byte readPowerState() {
     return state;
 }
 
-esp_err_t saveShader(byte* prog, size_t size) {
+esp_err_t saveLastShader(byte shaderIndex) {
     nvs_handle_t my_handle;
     esp_err_t err = ESP_OK;
 
@@ -97,7 +97,7 @@ esp_err_t saveShader(byte* prog, size_t size) {
     if (err != ESP_OK) return err;
 
     // Write shader
-    err = nvs_set_blob(my_handle, "shader", prog, size);
+    err = nvs_set_u8(my_handle, "lastshader", shaderIndex);
 
     if (err != ESP_OK) {
         nvs_close(my_handle);
@@ -111,8 +111,54 @@ esp_err_t saveShader(byte* prog, size_t size) {
     nvs_close(my_handle);
     return err;
 }
+byte readLastShader() {
+    nvs_handle_t my_handle;
+    byte shaderIndex = 0;
+    esp_err_t err;
 
-esp_err_t readShader(byte* data) {
+    // Open
+    err = nvs_open(STORAGE_NAMESPACE, NVS_READWRITE, &my_handle);
+    if (err != ESP_OK) return shaderIndex;
+
+    // read last shader index
+    err = nvs_get_u8(my_handle, "lastshader", &shaderIndex);
+    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+        nvs_close(my_handle);
+        return 0;
+    }
+
+    return shaderIndex;
+}
+
+esp_err_t saveShader(byte index, byte* shader, size_t size) {
+    nvs_handle_t my_handle;
+    esp_err_t err = ESP_OK;
+
+    // Open
+    err = nvs_open(STORAGE_NAMESPACE, NVS_READWRITE, &my_handle);
+    if (err != ESP_OK) return err;
+
+    // Write shader
+    char filename[NVS_KEY_NAME_MAX_SIZE];
+    sprintf(filename, "shader_%i", index);
+    err = nvs_set_blob(my_handle, filename, shader, size);
+
+    if (err != ESP_OK) {
+        nvs_close(my_handle);
+        return err;
+    }
+
+    // Commit
+    err = nvs_commit(my_handle);
+
+    printf("written shader %s\n", filename);
+
+    // Close
+    nvs_close(my_handle);
+    return err;
+}
+
+esp_err_t readShader(byte index, byte* data) {
     nvs_handle_t my_handle;
     esp_err_t err;
 
@@ -120,9 +166,12 @@ esp_err_t readShader(byte* data) {
     err = nvs_open(STORAGE_NAMESPACE, NVS_READWRITE, &my_handle);
     if (err != ESP_OK) return err;
 
+    char filename[NVS_KEY_NAME_MAX_SIZE];
+    sprintf(filename, "shader_%i", index);
+
     // Read the size of memory space required for blob
     size_t required_size = 0;  // value will default to 0, if not set yet in NVS
-    err = nvs_get_blob(my_handle, "shader", NULL, &required_size);
+    err = nvs_get_blob(my_handle, filename, NULL, &required_size);
     if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
         nvs_close(my_handle);
         return err;
@@ -130,11 +179,14 @@ esp_err_t readShader(byte* data) {
 
     if (required_size > 0) {
         // read if available
-        err = nvs_get_blob(my_handle, "shader", data, &required_size);
+        err = nvs_get_blob(my_handle, filename, data, &required_size);
         if (err != ESP_OK) {
             nvs_close(my_handle);
             return err;
         }
     }
+
+    printf("read shader %s\n", filename);
+
     return ESP_OK;
 }

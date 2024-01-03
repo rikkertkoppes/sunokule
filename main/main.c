@@ -47,7 +47,8 @@ QueueHandle_t main_events;
 
 typedef unsigned char byte;
 float clk = 0;
-byte power = 0;  // power off
+byte power = 0;          // power off
+byte currentShader = 0;  // current shader index
 
 static const int num_pixels[] = {
     CONFIG_SK_NUM_LEDS_0,
@@ -145,9 +146,9 @@ static void fps_task(void *pvParameters) {
         // dump_tasks();
 
         float master = getMaster(mem, shader);
-        ESP_LOGI(TAG, "fps %i, power %i, master %f", framecount, power, master);
+        ESP_LOGI(TAG, "fps %i, power %i, shader %i, master %f", framecount, power, currentShader, master);
         char data[80];
-        sprintf(data, "{\"fps\":%i,\"power\":%i}", framecount, power);
+        sprintf(data, "{\"fps\":%i,\"power\":%i,\"shader\":%i}", framecount, power, currentShader);
         ws_broadcast(data);
 
         framecount = 0;
@@ -186,8 +187,12 @@ static void params_task(void *pvParameters) {
                 case 0:  // shader packet
                     // second byte is data size
                     uint8_t datasize = data[1];
+                    uint8_t index = data[2 + ID_OFFSET];
                     // store shader in NVS
-                    saveShader(data + 2, datasize);
+                    saveShader(index, data + 2, datasize);
+                    // store last shader index
+                    currentShader = index;
+                    saveLastShader(index);
                     // reset shader time
                     clk = 0;
                     setShader(shader, data + 2, datasize);
@@ -210,6 +215,18 @@ static void params_task(void *pvParameters) {
                     // put dmx data into memory
                     setDMX(mem, data);
                     printf("%i %i %i \n", getDMX(mem, 0), getDMX(mem, 1), getDMX(mem, 2));
+                    break;
+
+                case 4:  // change shader packet
+                    index = data[1];
+                    // read the shader
+                    readShader(index, shader);
+                    // save the current shader
+                    currentShader = index;
+                    // reset shader time;
+                    clk = 0;
+                    // reinitialize working memory
+                    setMem(mem, shader);
                     break;
             }
         }
@@ -279,8 +296,10 @@ static void led_strip_task(void *pvParameters) {
     // load default shader
     memcpy(shader, default_shader, sizeof(default_shader));
 
+    currentShader = readLastShader();
+
     // get shader from NVS
-    readShader(shader);
+    readShader(currentShader, shader);
 
     power = readPowerState();
 
