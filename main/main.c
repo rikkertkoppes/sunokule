@@ -176,7 +176,7 @@ static void params_task(void *pvParameters) {
     while (true) {
         if (xQueueReceive(main_events, data, 1000 / portTICK_PERIOD_MS)) {
             printf("part of the buffer:");
-            for (int i = 0; i < 20; i++) {
+            for (int i = 0; i < 80; i++) {
                 // printf("%02X ", data[i]);
                 printf("%i ", data[i]);
             }
