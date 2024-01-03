@@ -121,5 +121,5 @@ void udp_client_task(void *pvParameters) {
 void startUDPTask(int stackSize, int prio, EventGroupHandle_t state, QueueHandle_t queue) {
     dmxQueue = queue;
     ESP_LOGI(TAG, "Available heap: %lu", (unsigned long)esp_get_free_heap_size());
-    xTaskCreate(udp_client_task, "udp_client", stackSize, (void *)state, prio, NULL);
+    xTaskCreatePinnedToCore(udp_client_task, "udp_client", stackSize, (void *)state, prio, NULL, 0);
 }
