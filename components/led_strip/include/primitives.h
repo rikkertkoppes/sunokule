@@ -127,8 +127,6 @@ void label(byte *mem, byte *prog, byte *counter) {
 
 void color(byte *mem, byte *prog, byte *counter) {
     byte _col = data_fetch(mem, prog, counter);
-    // byte _channel =
-    data_fetch(mem, prog, counter);
     byte _result = data_fetch(mem, prog, counter);
     float r = getFloat(mem, _col);
     float g = getFloat(mem, _col + 1);
