@@ -7,8 +7,6 @@
    CONDITIONS OF ANY KIND, either express or implied.
 */
 
-#include "sdkconfig.h"
-
 #include <lwip/netdb.h>
 #include <string.h>
 #include <sys/param.h>
@@ -27,12 +25,13 @@
 #include "mapping.h"
 #include "math.h"
 #include "primitives.h"
+#include "sdkconfig.h"
 #include "storage.h"
+#include "taskmon.h"
 #include "udp_client.h"
 #include "webserver.h"
 #include "wifi_conn.h"
 #include "ws2812.h"
-#include "taskmon.h"
 
 // update mapping => colors off, strip 0, ok, others wrong
 // swap data pins => no change
@@ -238,17 +237,15 @@ static void ws2812_stats_printer_task(void *arg) {
         if (stats.max_late_buffers > 1 || stats.dma_underrun_errors > 0) {
             ESP_LOGI(
                 TAG,
-                "late_buffer_occ=%d, max_late_buffers=%d, dma_underruns=%d, max_int_delta=%" PRIu32 ", total_int_time=%" PRIu32 ", needed_late_buffers=%d, consec_frames=%"PRIu32,
+                "late_buffer_occ=%d, max_late_buffers=%d, dma_underruns=%d, max_int_delta=%" PRIu32 ", total_int_time=%" PRIu32 ", needed_late_buffers=%d, consec_frames=%" PRIu32,
                 stats.late_buffer_occurrences, stats.max_late_buffers,
                 stats.dma_underrun_errors, stats.max_int_delta, stats.total_interrupt_time,
-                stats.needed_late_buffers, stats.consecutive_frames
-            );
+                stats.needed_late_buffers, stats.consecutive_frames);
         } else {
             ESP_LOGI(
                 TAG,
-                "consecutive_frames=%"PRIu32", total_int_time=%"PRIu32,
-                stats.consecutive_frames, stats.total_interrupt_time
-            );
+                "consecutive_frames=%" PRIu32 ", total_int_time=%" PRIu32,
+                stats.consecutive_frames, stats.total_interrupt_time);
         }
     }
 }
@@ -264,7 +261,7 @@ static void led_strip_task(void *pvParameters) {
         config.gpio_pins[s] = gpio_pins[s];
     }
     // Reduce actual number of in-use strands by ignoring last unused channels
-    while (config.num_strands > 0 && (config.num_pixels[config.num_strands - 1] == 0 || config.gpio_pins[config.num_strands - 1 ] < 0)) {
+    while (config.num_strands > 0 && (config.num_pixels[config.num_strands - 1] == 0 || config.gpio_pins[config.num_strands - 1] < 0)) {
         config.num_strands--;
     }
     for (int s = 0; s < config.num_strands; s++) {
