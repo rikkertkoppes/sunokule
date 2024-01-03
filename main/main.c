@@ -288,12 +288,13 @@ static void led_strip_task(void *pvParameters) {
         // t and elapsed are in ms;
         uint32_t t = clock();
         uint32_t elapsed = t - time;
+        float master = getMaster(mem, shader);
         time = t;
         // clock value in seconds
         clk += (float)elapsed * tick;
 
         ws2812_strands_t strands = ws2812_get_strands(bus);
-        if (power) {
+        if (power && (master > 0)) {
             frame(strands, shader, clk);
         } else {
             clear_strands(strands);
