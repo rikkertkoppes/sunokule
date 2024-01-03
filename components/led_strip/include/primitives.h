@@ -279,6 +279,21 @@ void hsv2rgb(byte *mem, byte *prog, byte *counter) {
     setFloat(mem, _result + 2, b);
 }
 
+void combineRGB(byte *mem, byte *prog, byte *counter) {
+    byte _r = data_fetch(mem, prog, counter);
+    byte _g = data_fetch(mem, prog, counter);
+    byte _b = data_fetch(mem, prog, counter);
+    byte _result = data_fetch(mem, prog, counter);
+
+    float r = getFloat(mem, _r);
+    float g = getFloat(mem, _g);
+    float b = getFloat(mem, _b);
+
+    setFloat(mem, _result, r);
+    setFloat(mem, _result + 1, g);
+    setFloat(mem, _result + 2, b);
+}
+
 void temp2rgb(byte *mem, byte *prog, byte *counter) {
     byte _t = data_fetch(mem, prog, counter);
     byte _result = data_fetch(mem, prog, counter);
@@ -489,6 +504,9 @@ void execute(byte *mem, byte *prog, byte *counter) {
                 break;
             case 15:
                 dmxValue(mem, prog, counter);
+                break;
+            case 18:
+                combineRGB(mem, prog, counter);
                 break;
         }
         op = instruction_fetch(mem, prog, counter);
