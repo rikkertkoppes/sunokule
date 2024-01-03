@@ -92,7 +92,7 @@ byte data_fetch(byte *mem, byte *prog, byte *counter) {
 }
 
 // primitives
-void condition(byte *mem, byte *prog, byte *counter) {
+void node_condition(byte *mem, byte *prog, byte *counter) {
     byte _condition = data_fetch(mem, prog, counter);
     byte _ref = data_fetch(mem, prog, counter);
     float condition = getFloat(mem, _condition);
@@ -105,12 +105,12 @@ void condition(byte *mem, byte *prog, byte *counter) {
     }
 }
 
-void jump(byte *mem, byte *prog, byte *counter) {
+void node_jump(byte *mem, byte *prog, byte *counter) {
     byte _ref = data_fetch(mem, prog, counter);
     *counter = _ref;
 }
 
-void store_jump(byte *mem, byte *prog, byte *counter) {
+void node_store_jump(byte *mem, byte *prog, byte *counter) {
     byte _from = data_fetch(mem, prog, counter);
     byte _to = data_fetch(mem, prog, counter);
     byte _ref = data_fetch(mem, prog, counter);
@@ -123,11 +123,11 @@ void store_jump(byte *mem, byte *prog, byte *counter) {
     *counter = _ref;
 }
 
-void label(byte *mem, byte *prog, byte *counter) {
+void node_label(byte *mem, byte *prog, byte *counter) {
     // just skips to next instruction
 }
 
-void color(byte *mem, byte *prog, byte *counter) {
+void node_color(byte *mem, byte *prog, byte *counter) {
     byte _col = data_fetch(mem, prog, counter);
     byte _result = data_fetch(mem, prog, counter);
     float r = getFloat(mem, _col);
@@ -138,7 +138,7 @@ void color(byte *mem, byte *prog, byte *counter) {
     setFloat(mem, _result + 2, b);
 }
 
-void value(byte *mem, byte *prog, byte *counter) {
+void node_value(byte *mem, byte *prog, byte *counter) {
     byte _val = data_fetch(mem, prog, counter);
     byte _result = data_fetch(mem, prog, counter);
     float val;
@@ -146,7 +146,7 @@ void value(byte *mem, byte *prog, byte *counter) {
     setFloat(mem, _result, val);
 }
 
-void dmxValue(byte *mem, byte *prog, byte *counter) {
+void node_dmxValue(byte *mem, byte *prog, byte *counter) {
     byte _channel = data_fetch(mem, prog, counter);
     byte _result = data_fetch(mem, prog, counter);
     float channel = getFloat(mem, _channel);
@@ -159,7 +159,7 @@ void dmxValue(byte *mem, byte *prog, byte *counter) {
     setFloat(mem, _result, val);
 }
 
-void gradient(byte *mem, byte *prog, byte *counter) {
+void node_gradient(byte *mem, byte *prog, byte *counter) {
     byte _t = data_fetch(mem, prog, counter);
     byte _col1 = data_fetch(mem, prog, counter);
     byte _col2 = data_fetch(mem, prog, counter);
@@ -186,7 +186,7 @@ void node_smoothstep(byte *mem, byte *prog, byte *counter) {
     setFloat(mem, _result, value);
 }
 
-void waveform(byte *mem, byte *prog, byte *counter) {
+void node_waveform(byte *mem, byte *prog, byte *counter) {
     byte _period = data_fetch(mem, prog, counter);
     byte _speed = data_fetch(mem, prog, counter);
     byte _phase = data_fetch(mem, prog, counter);
@@ -231,7 +231,7 @@ void waveform(byte *mem, byte *prog, byte *counter) {
     setFloat(mem, _result, value);
 }
 
-void hsv2rgb(byte *mem, byte *prog, byte *counter) {
+void node_hsv2rgb(byte *mem, byte *prog, byte *counter) {
     byte _h = data_fetch(mem, prog, counter);
     byte _s = data_fetch(mem, prog, counter);
     byte _v = data_fetch(mem, prog, counter);
@@ -291,7 +291,7 @@ void hsv2rgb(byte *mem, byte *prog, byte *counter) {
     setFloat(mem, _result + 2, b);
 }
 
-void combineRGB(byte *mem, byte *prog, byte *counter) {
+void node_combineRGB(byte *mem, byte *prog, byte *counter) {
     byte _r = data_fetch(mem, prog, counter);
     byte _g = data_fetch(mem, prog, counter);
     byte _b = data_fetch(mem, prog, counter);
@@ -306,7 +306,7 @@ void combineRGB(byte *mem, byte *prog, byte *counter) {
     setFloat(mem, _result + 2, b);
 }
 
-void temp2rgb(byte *mem, byte *prog, byte *counter) {
+void node_temp2rgb(byte *mem, byte *prog, byte *counter) {
     byte _t = data_fetch(mem, prog, counter);
     byte _result = data_fetch(mem, prog, counter);
 
@@ -325,7 +325,7 @@ void temp2rgb(byte *mem, byte *prog, byte *counter) {
     setFloat(mem, _result + 2, b / 255.0);
 }
 
-void math(byte *mem, byte *prog, byte *counter) {
+void node_math(byte *mem, byte *prog, byte *counter) {
     byte _a = data_fetch(mem, prog, counter);
     byte _b = data_fetch(mem, prog, counter);
     byte _fn = data_fetch(mem, prog, counter);
@@ -360,7 +360,7 @@ void math(byte *mem, byte *prog, byte *counter) {
     setFloat(mem, _result, value);
 }
 
-void mapRange(byte *mem, byte *prog, byte *counter) {
+void node_mapRange(byte *mem, byte *prog, byte *counter) {
     byte _v = data_fetch(mem, prog, counter);
     byte _fmin = data_fetch(mem, prog, counter);
     byte _fmax = data_fetch(mem, prog, counter);
@@ -380,7 +380,7 @@ void mapRange(byte *mem, byte *prog, byte *counter) {
     setFloat(mem, _result, result);
 }
 
-void compare(byte *mem, byte *prog, byte *counter) {
+void node_compare(byte *mem, byte *prog, byte *counter) {
     byte _a = data_fetch(mem, prog, counter);
     byte _b = data_fetch(mem, prog, counter);
     byte _fn = data_fetch(mem, prog, counter);
@@ -415,7 +415,7 @@ void compare(byte *mem, byte *prog, byte *counter) {
     setFloat(mem, _result, value);
 }
 
-void trig(byte *mem, byte *prog, byte *counter) {
+void node_trig(byte *mem, byte *prog, byte *counter) {
     byte _x = data_fetch(mem, prog, counter);
     byte _fn = data_fetch(mem, prog, counter);
     byte _result = data_fetch(mem, prog, counter);
@@ -473,54 +473,55 @@ void execute(byte *mem, byte *prog, byte *counter) {
                 // end of program
                 return;
             case 1:
-                color(mem, prog, counter);
+                node_color(mem, prog, counter);
                 break;
             case 2:
-                gradient(mem, prog, counter);
+                node_gradient(mem, prog, counter);
                 break;
             case 3:
-                waveform(mem, prog, counter);
+                node_waveform(mem, prog, counter);
                 break;
             case 4:
-                hsv2rgb(mem, prog, counter);
+                node_hsv2rgb(mem, prog, counter);
                 break;
             case 5:
-                value(mem, prog, counter);
+                node_value(mem, prog, counter);
                 break;
             case 6:
-                math(mem, prog, counter);
+                node_math(mem, prog, counter);
                 break;
             case 7:
-                trig(mem, prog, counter);
+                node_trig(mem, prog, counter);
                 break;
             case 8:
-                condition(mem, prog, counter);
+                node_condition(mem, prog, counter);
                 break;
             case 9:
-                compare(mem, prog, counter);
+                node_compare(mem, prog, counter);
                 break;
             case 10:
-                label(mem, prog, counter);
+                node_label(mem, prog, counter);
                 break;
             case 11:
-                jump(mem, prog, counter);
+                node_jump(mem, prog, counter);
                 break;
             case 12:
-                store_jump(mem, prog, counter);
+                node_store_jump(mem, prog, counter);
                 break;
             case 13:
-                temp2rgb(mem, prog, counter);
+                node_temp2rgb(mem, prog, counter);
                 break;
             case 14:
-                mapRange(mem, prog, counter);
+                node_mapRange(mem, prog, counter);
                 break;
             case 15:
+                node_dmxValue(mem, prog, counter);
                 break;
             case 17:
                 node_smoothstep(mem, prog, counter);
                 break;
             case 18:
-                combineRGB(mem, prog, counter);
+                node_combineRGB(mem, prog, counter);
                 break;
         }
         op = instruction_fetch(mem, prog, counter);
